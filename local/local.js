@@ -131,7 +131,39 @@ function getUserVars(callback)
                 varlist.push(uv);
             })
         });
-        printObj(varlist);
+        //printObj(varlist);
+        callback(varlist);
+    });
+}
+
+
+function getWaitListVars(callback)
+{
+   console.log("getWaitListVars");
+   if(verifyBSP()==false) { return false;}
+   if(bsputils_env.playerurl==null) {
+        sUrl="http://localhost:8080/GetWaitListVars";
+   } else {
+        sUrl=bsputils_env.playerurl+"/GetWaitListVars";
+   }
+
+   var varlist=new Array();
+   $.get(sUrl,function(data,status,jqXHR)
+   { 
+        un=jqXHR.responseText;
+
+        xmlDoc = $.parseXML( un );
+        $xml = $( xmlDoc );
+
+        $xml.find('WaitListVariables').each(function(){
+            $(this).children().each(function(){
+                var tagName=this.tagName;
+                var val=$(this).text();
+                uv=new userVar(tagName,val);
+                varlist.push(uv);
+            })
+        });
+        //printObj(varlist);
         callback(varlist);
     });
 }

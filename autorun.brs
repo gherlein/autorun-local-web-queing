@@ -22886,8 +22886,17 @@ Sub PopulateWaitListData(mVar As Object, root As Object)
   while x<num
     person=mVar.waitlistNames[x]
     size=mVar.waitlistSizes[x]
-    elem = root.AddElement(person)
-    elem.SetBody(size)
+
+    party=root.AddBodyElement()
+    party.SetName("party")
+    personElement=party.AddBodyElement()
+    personElement.SetName("name")
+    personElement.SetBody(person)
+
+    numberElement=party.AddBodyElement()
+    numberElement.SetName("number")
+    numberElement.SetBody(size)
+
     x=x+1
   end while
 End Sub
@@ -22898,19 +22907,14 @@ Function AddWaitListEntry(userData as Object, e as Object)
   mVar = userData.mVar
   args = e.GetFormData()
 
-  for each party in args
-    print party+": "+args[party]
-    b=isInArray(party,mVar.waitlistNames)
-    if b=true
-          print party+" already in list"
-      goto loop_again
-    end if
+  name=args.LookupCi("name")
+  number=args.LookupCi("number")
+  b=isInArray(name,mVar.waitlistNames)
+  if b=true
 
-    print "adding "+party+": "+args[party]
-    mVar.waitlistNames.push(party)
-    mVar.waitlistSizes.push(args[party])
-    loop_again:
-  next
+  end if
+  mVar.waitlistNames.push(name)
+  mVar.waitlistSizes.push(number)
 
   GetWaitListVars(userData,e)
 End Function
@@ -22931,18 +22935,17 @@ Sub DelWaitListEntry(userData as Object, e as Object)
   mVar = userData.mVar
   args = e.GetFormData()
 
-  for each party in args
-    num=mVar.waitlistNames.Count()
-    x=0
-    while x<num
-      person=mVar.waitlistNames[x]
-      if person=party
-        mVar.waitlistNames.Delete(x)
-        mVar.waitlistSizes.Delete(x)
-      end if
-      x=x+1
-    end while
-  end for
+  name=args.LookupCi("name")
+  num=mVar.waitlistNames.Count()
+  x=0
+  while x<num
+    person=mVar.waitlistNames[x]
+    if person=name
+      mVar.waitlistNames.Delete(x)
+      mVar.waitlistSizes.Delete(x)
+    end if
+    x=x+1
+  end while
   GetWaitListVars(userData,e)
 
 End Sub

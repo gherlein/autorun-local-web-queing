@@ -20,19 +20,17 @@ window.onload = function() {
     bsp=bsputils_init(isBSP,true,localPlayerIP);
   }
   printObj(bsp);
-
-  //getID(printObj);
-  getUserVars(doUserVars);
+  getWaitListVars(doVars)  
 };
 
-function doUserVars(us)
+function doVars(us)
 {
-  console.log("doUserVars");
+  console.log("doVars");
   printObj(us);
 
   if(typeof us === 'undefined')
   {
-    console.log("userVars not defined");
+    console.log("waitListVars not defined");
     return;
   }
 
@@ -61,13 +59,14 @@ function doUserVars(us)
 <img src="logo.png" alt="LOGO">
 </div>
 <center>
-<h1>WaitList Page!!!</h1>
+<h1>WaitList Page</h1>
 <div id="form">
-<form action="/SetValues" method="post">
+<form action="/AddWaitListEntry" method="post">
 <div class="form-data"></div>
-
 <input class="button" type="submit" value="Set Values" /><br />
+
 </form>
+
 </div>
 </center>
 <div>

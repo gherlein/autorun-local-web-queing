@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>BrightSign User Variables</title>
+<LINK href="local.css" rel="stylesheet" type="text/css">
+<script src="jquery-1.9.1.min.js"></script>
+<script src="local.js"></script>
+<script>
+
+var localPlayerIP="http://192.168.70.100:8080";
+
+window.onload = function() {
+
+  var isBSP=isBrightSign();
+
+  if(isBSP) {
+    bsp=bsputils_init(isBSP,true);
+  } else {
+    bsp=bsputils_init(isBSP,true,localPlayerIP);
+  }
+  printObj(bsp);
+
+  //getID(printObj);
+  getUserVars(doUserVars);
+};
+
+function doUserVars(us)
+{
+  console.log("doUserVars");
+  printObj(us);
+
+  if(typeof us === 'undefined')
+  {
+    console.log("userVars not defined");
+    return;
+  }
+
+  s="";
+  for(var x=0;x<us.length;x++)
+  {
+    var o=us[x];
+    printObj(o);
+    s = s + o.key+": <input type=\"text\" name=\""+o.key+"\" value=\""+o.value+"\" size=\"60\" /> <br/>";
+  } 
+
+  console.log(s);
+  $('div.form-data').html(s);
+
+}
+
+
+
+
+
+</script>
+
+</head>
+<body>
+<div id="header">
+<img src="logo.png" alt="LOGO">
+</div>
+<center>
+<h1>WaitList Page!!!</h1>
+<div id="form">
+<form action="/SetValues" method="post">
+<div class="form-data"></div>
+
+<input class="button" type="submit" value="Set Values" /><br />
+</form>
+</div>
+</center>
+<div>
+<br>
+</div>
+<div id="footer">
+	<center>(c) 2013 Brightsign LLC</center>
+</div>
+</body>
+</html>

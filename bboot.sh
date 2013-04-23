@@ -1,0 +1,1 @@
+curl "http://$1/action.html?reboot=Reboot"

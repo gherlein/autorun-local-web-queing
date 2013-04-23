@@ -393,11 +393,6 @@ Sub RunBsp(sysFlags As Object, sysInfo As Object, diagnosticCodes As Object)
         BSP.localServer.AddPostToFormData({ url_path: "/SetValues", user_data: BSP.SetValuesAA })
 
         ' start custom code'
-    		BSP.localServer.AddGetFromFile({ url_path: "/logo.png", filename: "SD:/local/logo.png", content_type: "image/png" })
-        BSP.localServer.AddGetFromFile({ url_path: "/local.css", filename: "SD:/local/local.css", content_type: "text/css" })
-        BSP.localServer.AddGetFromFile({ url_path: "/local.js", filename: "SD:/local/local.js", content_type: "text/javascript" })
-        BSP.localServer.AddGetFromFile({ url_path: "/jquery-1.9.1.min.js", filename: "SD:/local/jquery-1.9.1.min.js", content_type: "text/javascript" })
-
         BSP.GetUserVarsAA =         { HandleEvent: GetUserVars, mVar: BSP }
         BSP.localServer.AddGetFromEvent({ url_path: "/GetUserVars", user_data: BSP.GetUserVarsAA})
 
@@ -413,18 +408,21 @@ Sub RunBsp(sysFlags As Object, sysInfo As Object, diagnosticCodes As Object)
         BSP.DelWaitListEntryAA =         { HandleEvent: DelWaitListEntry, mVar: BSP }
         BSP.localServer.AddPostToFormData({ url_path: "/DelWaitListEntry", user_data: BSP.DelWaitListEntryAA })
 
+        ' arrays to hold the waiting list data'
         BSP.waitlistNames=[]
         BSP.waitlistSizes=[]
 
-        BSP.waitlistNames.push("Joe")
-        BSP.waitlistSizes.push("2")
-
-        BSP.waitlistNames.push("Mary")
-        BSP.waitlistSizes.push("3")
-
-        BSP.waitlistNames.push("Pete")
-        BSP.waitlistSizes.push("4")
-
+        ' add all the files in the local folder to be served up by the local web server '
+        baseDir="SD:/local"
+        list=ListDir(baseDir)
+        for each file in list
+          ext=GetFileExtension(file)
+          ct=GetMimeTypeByExtension(ext)
+          print ext+": "+ct
+          u="/"+file
+          f=baseDir+u
+          BSP.localServer.AddGetFromFile({ url_path: u, filename: f, content_type: ct })
+        next
 
 		    ' end custom code'
 
@@ -22895,25 +22893,38 @@ Sub PopulateWaitListData(mVar As Object, root As Object)
 End Sub
 
 
-Sub AddWaitListEntry(userData as Object, e as Object)
+Function AddWaitListEntry(userData as Object, e as Object)
 
   mVar = userData.mVar
   args = e.GetFormData()
 
-  ' need to see if it exists already'
+  for each party in args
+    print party+": "+args[party]
+    b=isInArray(party,mVar.waitlistNames)
+    if b=true
+          print party+" already in list"
+      goto loop_again
+    end if
 
-  ' add it'
-    for each party in args
-''      print party
-''      print args[party]
-      mVar.waitlistNames.push(party)
-      mVar.waitlistSizes.push(args[party])
-    next
+    print "adding "+party+": "+args[party]
+    mVar.waitlistNames.push(party)
+    mVar.waitlistSizes.push(args[party])
+    loop_again:
+  next
 
-    GetWaitListVars(userData,e)
+  GetWaitListVars(userData,e)
+End Function
 
-End Sub
 
+Function isInArray(str as String, arr as object) as Integer
+
+  for each a in arr
+    if a=str
+      return 1
+    end if
+  next
+  return 0
+end function
 
 Sub DelWaitListEntry(userData as Object, e as Object)
 
@@ -22937,6 +22948,51 @@ Sub DelWaitListEntry(userData as Object, e as Object)
 End Sub
 
 
+Function GetFileExtension(file as String) as String
+  s=file.tokenize(".")
+  ext=s.pop()
+  return ext
+end Function
 
+Function GetMimeTypeByExtension(ext as String) as String
 
+  ' start with audio types '
+  if ext="mp3"
+    return "audio/mpeg"
 
+  ' now image types '
+  else if ext="gif"
+    return "image/gif"
+  else if ext="jpeg"
+    return "image/jpeg"
+  else if ext="jpg"
+    return "image/jpeg"
+  else if ext="png"
+    return "image/png"
+
+  ' now text types'
+  else if ext="css"
+    return "text/css"
+  else if ext="js"
+    return "application/JavaScript"
+  else if ext="csv"
+    return "text/csv"
+  else if ext="html"
+    return "text/html"
+  else if ext="htm"
+    return "text/html"
+  else if ext="txt"
+    return "text/plain"
+  else if ext="xml"
+    return "text/xml"
+
+  ' now some video types'
+  else if ext="mpeg"
+    return "video/mpeg"
+  else if ext="mp4"
+    return "video/mp4"
+  else if ext="ts"
+    return "video/mpeg"
+
+  end if
+end Function

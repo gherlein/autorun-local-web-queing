@@ -410,6 +410,8 @@ Sub RunBsp(sysFlags As Object, sysInfo As Object, diagnosticCodes As Object)
         BSP.AddWaitListEntryAA =         { HandleEvent: AddWaitListEntry, mVar: BSP }
         BSP.localServer.AddPostToFormData({ url_path: "/AddWaitListEntry", user_data: BSP.AddWaitListEntryAA })
 
+        BSP.DelWaitListEntryAA =         { HandleEvent: DelWaitListEntry, mVar: BSP }
+        BSP.localServer.AddPostToFormData({ url_path: "/DelWaitListEntry", user_data: BSP.DelWaitListEntryAA })
 
         BSP.waitlistNames=[]
         BSP.waitlistSizes=[]
@@ -22909,6 +22911,28 @@ Sub AddWaitListEntry(userData as Object, e as Object)
     next
 
     GetWaitListVars(userData,e)
+
+End Sub
+
+
+Sub DelWaitListEntry(userData as Object, e as Object)
+
+  mVar = userData.mVar
+  args = e.GetFormData()
+
+  for each party in args
+    num=mVar.waitlistNames.Count()
+    x=0
+    while x<num
+      person=mVar.waitlistNames[x]
+      if person=party
+        mVar.waitlistNames.Delete(x)
+        mVar.waitlistSizes.Delete(x)
+      end if
+      x=x+1
+    end while
+  end for
+  GetWaitListVars(userData,e)
 
 End Sub
 

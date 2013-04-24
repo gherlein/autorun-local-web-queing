@@ -47,13 +47,16 @@ function cellClickedDelete(x)
   apprise(str, {'verify':true}, function(c) {
     if(c==true)  
     {
-      i=tr.parentNode.rowIndex;
-      console.log(i);
-      tr.parentNode.deleteRow(i);
-//      tr.remove();
+      var result = $('tr').find('td:contains('+name+')');
+      var row = $(result).closest('tr');
+      row.remove();
       actWaitListVars("delete",nullDraw,name);
     }
   });
+}
+
+function getCell( cell )
+{
 }
 
 function nullDraw()

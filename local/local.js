@@ -105,6 +105,7 @@ function bspID(unitName,unitNamingMethod,unitDescription,serialNumber,functional
 
 
 
+
 function getUserVars(callback)
 {
     console.log("getUserVars");
@@ -136,6 +137,12 @@ function getUserVars(callback)
     });
 }
 
+function userVar(key,value)
+{
+    this.key=key;
+    this.value=value;
+}
+
 
 function getWaitListVars(callback)
 {
@@ -147,7 +154,7 @@ function getWaitListVars(callback)
         sUrl=bsputils_env.playerurl+"/GetWaitListVars";
    }
 
-   var varlist=new Array();
+   var waitList=new Array();
    $.get(sUrl,function(data,status,jqXHR)
    { 
         un=jqXHR.responseText;
@@ -155,23 +162,41 @@ function getWaitListVars(callback)
         xmlDoc = $.parseXML( un );
         $xml = $( xmlDoc );
 
-        $xml.find('WaitListVariables').each(function(){
+        $xml.find('party').each(function(){
+            var name="";
+            var number="";
             $(this).children().each(function(){
-                var tagName=this.tagName;
-                var val=$(this).text();
-                uv=new userVar(tagName,val);
-                varlist.push(uv);
+                if(this.tagName=="name")    
+                name=$(this).text();
+                if(this.tagName=="number")    
+                number=$(this).text();
             })
+            var uv=new waitListVar(name,number);
+            waitList.push(uv);
         });
-        //printObj(varlist);
-        callback(varlist);
+        printObj(waitList);
+        callback(waitList);
     });
 }
 
-function userVar(key,value)
+
+function waitListVar(name,number)
 {
-    this.key=key;
-    this.value=value;
+    this.name=name;
+    this.number=number;
+}
+
+function delWaitListVar(nameStr)
+{
+   console.log("delWaitListVars");
+   if(verifyBSP()==false) { return false;}
+   if(bsputils_env.playerurl==null) {
+        sUrl="http://localhost:8080//DelWaitListEntryPostString";
+   } else {
+        sUrl=bsputils_env.playerurl+"/DelWaitListEntryPostString";
+   }
+
+   $.post(sUrl, { name: nameStr } );
 }
 
 

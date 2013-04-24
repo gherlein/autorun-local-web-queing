@@ -19,36 +19,46 @@ window.onload = function() {
   } else {
     bsp=bsputils_init(isBSP,true,localPlayerIP);
   }
-  printObj(bsp);
-  getWaitListVars(doVars)  
+  getWaitListVars(doVars);  
+  setInterval(function(){getWaitListVars(doVars)},5000);
+
+
 };
+
+
+function rowClicked(x)
+{
+  var name = x.cells[0].innerText || x.cells[0].textContent;
+  delWaitListVar(name);
+}
+
 
 function doVars(us)
 {
   console.log("doVars");
-  printObj(us);
-
   if(typeof us === 'undefined')
   {
     console.log("waitListVars not defined");
     return;
   }
 
-  s="";
+  var s="";
+  s += '<table id="waitlist-table" cellspacing=0 cellpadding=2 border=1>';
+  s += "<tr><th>Name</th><th>Number</th></tr>";
   for(var x=0;x<us.length;x++)
   {
     var o=us[x];
     printObj(o);
-    s = s + o.key+": <input type=\"text\" name=\""+o.key+"\" value=\""+o.value+"\" size=\"60\" /> <br/>";
+    s+='<tr onclick="rowClicked(this)"">';
+    s+="<td><center>"+o.name+"</center></td>";
+    s+="<td><center>"+o.number+"</center></td>";
+    s+='<td><button class="delbtn">delete</button></td>';
+    s+="</tr>";
   } 
-
+  s+="</table>"
   console.log(s);
-  $('div.form-data').html(s);
-
-}
-
-
-
+  $('div.waitlist').html(s);
+};
 
 
 </script>
@@ -60,6 +70,8 @@ function doVars(us)
 </div>
 <center>
 <h1>WaitList Page</h1>
+<div class="waitlist"></div>
+
 <div id="form">
 <form action="/AddWaitListEntry" method="post">
 <div class="form-data"></div>

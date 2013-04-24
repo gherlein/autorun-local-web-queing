@@ -402,11 +402,16 @@ Sub RunBsp(sysFlags As Object, sysInfo As Object, diagnosticCodes As Object)
         BSP.GetWaitListVarsAA =         { HandleEvent: GetWaitListVars, mVar: BSP }
         BSP.localServer.AddGetFromEvent({ url_path: "/GetWaitListVars", user_data: BSP.GetWaitListVarsAA})
 
+
         BSP.AddWaitListEntryAA =         { HandleEvent: AddWaitListEntry, mVar: BSP }
         BSP.localServer.AddPostToFormData({ url_path: "/AddWaitListEntry", user_data: BSP.AddWaitListEntryAA })
 
         BSP.DelWaitListEntryAA =         { HandleEvent: DelWaitListEntry, mVar: BSP }
         BSP.localServer.AddPostToFormData({ url_path: "/DelWaitListEntry", user_data: BSP.DelWaitListEntryAA })
+
+        BSP.DelWaitListEntryPostStringAA = { HandleEvent: DelWaitListEntryPostString, mVar: BSP }
+        BSP.localServer.AddPostToString({ url_path: "/DelWaitListEntryPostString", user_data: BSP.DelWaitListEntryPostStringAA })
+
 
         ' arrays to hold the waiting list data'
         BSP.waitlistNames=[]
@@ -22859,6 +22864,7 @@ Sub GetWaitListPage(userData as Object, e as Object)
 End Sub
 
 
+
 Sub GetWaitListVars(userData as Object, e as Object)
 
     mVar = userData.mVar
@@ -22873,7 +22879,6 @@ Sub GetWaitListVars(userData as Object, e as Object)
 
     xml = root.GenXML({ indent: " ", newline: chr(10), header: true })
 
-    e.AddResponseHeader("Content-type", "text/xml")
     e.SetResponseBodyString(xml)
     e.SendResponse(200)
       
@@ -22949,6 +22954,31 @@ Sub DelWaitListEntry(userData as Object, e as Object)
   GetWaitListVars(userData,e)
 
 End Sub
+
+
+Sub DelWaitListEntryPostString(userData as Object, e as Object)
+
+  mVar = userData.mVar
+  name$ = e.GetRequestBodyString().trim()
+
+  print "DelWaitListEntryPostString: "+name$
+
+  num=mVar.waitlistNames.Count()
+  x=0
+  while x<num
+    person=mVar.waitlistNames[x]
+    print "comparing ["+person+"] to ["+name$+"]"
+    if person=name$
+      print "deleting "+name$
+      mVar.waitlistNames.Delete(x)
+      mVar.waitlistSizes.Delete(x)
+    end if
+    x=x+1
+  end while
+  GetWaitListVars(userData,e)
+
+End Sub
+
 
 
 Function GetFileExtension(file as String) as String

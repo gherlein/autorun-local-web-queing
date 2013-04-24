@@ -17,7 +17,13 @@ curl -i -F filedata="@local/jquery-1.9.1.min.js" "http://$1/upload.html?rp=sd/lo
 curl "http://$1/delete?filename=sd%2f/local/local.js&delete=Delete"
 curl -i -F filedata="@local/local.js" "http://$1/upload.html?rp=sd/local"
 #
+curl "http://$1/delete?filename=sd%2f/local/waitlist.js&delete=Delete"
+curl -i -F filedata="@local/waitlist.js" "http://$1/upload.html?rp=sd/local"
+#
 curl "http://$1/delete?filename=sd%2f/local/waitlist.html&delete=Delete"
 curl -i -F filedata="@local/waitlist.html" "http://$1/upload.html?rp=sd/local"
 #
 #curl "http://$1/action.html?reboot=Reboot"
+echo
+echo
+echo

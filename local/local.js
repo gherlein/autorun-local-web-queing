@@ -144,62 +144,6 @@ function userVar(key,value)
 }
 
 
-function getWaitListVars(callback)
-{
-   console.log("getWaitListVars");
-   if(verifyBSP()==false) { return false;}
-   if(bsputils_env.playerurl==null) {
-        sUrl="http://localhost:8080/GetWaitListVars";
-   } else {
-        sUrl=bsputils_env.playerurl+"/GetWaitListVars";
-   }
-
-   var waitList=new Array();
-   $.get(sUrl,function(data,status,jqXHR)
-   { 
-        un=jqXHR.responseText;
-
-        xmlDoc = $.parseXML( un );
-        $xml = $( xmlDoc );
-
-        $xml.find('party').each(function(){
-            var name="";
-            var number="";
-            $(this).children().each(function(){
-                if(this.tagName=="name")    
-                name=$(this).text();
-                if(this.tagName=="number")    
-                number=$(this).text();
-            })
-            var uv=new waitListVar(name,number);
-            waitList.push(uv);
-        });
-        printObj(waitList);
-        callback(waitList);
-    });
-}
-
-
-function waitListVar(name,number)
-{
-    this.name=name;
-    this.number=number;
-}
-
-function delWaitListVar(nameStr)
-{
-   console.log("delWaitListVars");
-   if(verifyBSP()==false) { return false;}
-   if(bsputils_env.playerurl==null) {
-        sUrl="http://localhost:8080//DelWaitListEntryPostString";
-   } else {
-        sUrl=bsputils_env.playerurl+"/DelWaitListEntryPostString";
-   }
-
-   $.post(sUrl, { name: nameStr } );
-}
-
-
 
 function getUDPEvents(callback)
 {

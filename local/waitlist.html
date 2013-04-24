@@ -6,6 +6,7 @@
 <LINK href="local.css" rel="stylesheet" type="text/css">
 <script src="jquery-1.9.1.min.js"></script>
 <script src="local.js"></script>
+<script src="waitlist.js"></script>
 <script>
 
 var localPlayerIP="http://192.168.70.100:8080";
@@ -19,8 +20,8 @@ window.onload = function() {
   } else {
     bsp=bsputils_init(isBSP,true,localPlayerIP);
   }
-  getWaitListVars(doVars);  
-  setInterval(function(){getWaitListVars(doVars)},5000);
+  actWaitListVars("get",doVars);  
+  setInterval(function(){actWaitListVars("get",doVars)},1000);
 
 
 };
@@ -29,7 +30,7 @@ window.onload = function() {
 function rowClicked(x)
 {
   var name = x.cells[0].innerText || x.cells[0].textContent;
-  delWaitListVar(name);
+  actWaitListVars("delete",doVars,name);
 }
 
 
@@ -44,7 +45,7 @@ function doVars(us)
 
   var s="";
   s += '<table id="waitlist-table" cellspacing=0 cellpadding=2 border=1>';
-  s += "<tr><th>Name</th><th>Number</th></tr>";
+  s += "<tr><th>Name</th><th>Number</th><th>Edit</th><th>Delete</th></tr>";
   for(var x=0;x<us.length;x++)
   {
     var o=us[x];
@@ -52,7 +53,8 @@ function doVars(us)
     s+='<tr onclick="rowClicked(this)"">';
     s+="<td><center>"+o.name+"</center></td>";
     s+="<td><center>"+o.number+"</center></td>";
-    s+='<td><button class="delbtn">delete</button></td>';
+    s+='<td style="visibility:hidden;"><button class="editbtn">Edit</button></td>';
+    s+='<td style="visibility:hidden;"><button class="delbtn">Delete</button></td>';
     s+="</tr>";
   } 
   s+="</table>"

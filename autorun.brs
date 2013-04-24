@@ -409,9 +409,8 @@ Sub RunBsp(sysFlags As Object, sysInfo As Object, diagnosticCodes As Object)
         BSP.DelWaitListEntryAA =         { HandleEvent: DelWaitListEntry, mVar: BSP }
         BSP.localServer.AddPostToFormData({ url_path: "/DelWaitListEntry", user_data: BSP.DelWaitListEntryAA })
 
-        BSP.DelWaitListEntryPostStringAA = { HandleEvent: DelWaitListEntryPostString, mVar: BSP }
-        BSP.localServer.AddPostToString({ url_path: "/DelWaitListEntryPostString", user_data: BSP.DelWaitListEntryPostStringAA })
-
+        BSP.ActWaitListVarsAA =         { HandleEvent: ActWaitListVars, mVar: BSP }
+        BSP.localServer.AddPostToFormData({ url_path: "/ActWaitListVars", user_data: BSP.ActWaitListVarsAA })
 
         ' arrays to hold the waiting list data'
         BSP.waitlistNames=[]
@@ -22939,8 +22938,7 @@ Sub DelWaitListEntry(userData as Object, e as Object)
 
   mVar = userData.mVar
   args = e.GetFormData()
-
-  name=args.LookupCi("name")
+  name=args.name.trim()
   num=mVar.waitlistNames.Count()
   x=0
   while x<num
@@ -22955,30 +22953,45 @@ Sub DelWaitListEntry(userData as Object, e as Object)
 
 End Sub
 
-
-Sub DelWaitListEntryPostString(userData as Object, e as Object)
+Sub ActWaitListVars(userData as Object, e as Object)
 
   mVar = userData.mVar
-  name$ = e.GetRequestBodyString().trim()
+  args = e.GetFormData()
+  print args
 
-  print "DelWaitListEntryPostString: "+name$
+  act =args.action.trim()
 
-  num=mVar.waitlistNames.Count()
-  x=0
-  while x<num
-    person=mVar.waitlistNames[x]
-    print "comparing ["+person+"] to ["+name$+"]"
-    if person=name$
-      print "deleting "+name$
-      mVar.waitlistNames.Delete(x)
-      mVar.waitlistSizes.Delete(x)
+  if act="get"
+    ' do nothing - fall through'
+  else if act="add"
+    name=args.name.trim()
+    number=args.number.trim()
+    b=isInArray(name,mVar.waitlistNames)
+    if b<>true
+      mVar.waitlistNames.push(name)
+      mVar.waitlistSizes.push(number)
     end if
-    x=x+1
-  end while
+  else if act="change"
+
+
+  else if act="delete"
+    name=args.name.trim()
+    num=mVar.waitlistNames.Count()
+    x=0
+    while x<num
+      person=mVar.waitlistNames[x]
+      if person=name
+        mVar.waitlistNames.Delete(x)
+        mVar.waitlistSizes.Delete(x)
+      end if
+      x=x+1
+    end while
+
+  else
+    print "No valid action specified for ActWaitListVars"
+  end if 
   GetWaitListVars(userData,e)
-
 End Sub
-
 
 
 Function GetFileExtension(file as String) as String

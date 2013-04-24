@@ -4,17 +4,18 @@ body {
 body,td,th {
                 color: #000;
                 font-family: Verdana, Geneva, sans-serif;
-                font-size: 18px;
+                font-size: 24px;
 }
 
 input {
                 color: #000;
                 font-family: Verdana, Geneva, sans-serif;
-                font-size: 18px;
+                font-size: 24px;
 }
 
+img.listbuttons { height: 60px; width: 60px;}
 
-div#form-data { min-width: 1080px; background-color: #c70004; height: 84px; }
-div#header { min-width: 1080px; background-color: #c70004; height: 84px; }
+div#form-data { min-width: 768px; background-color: #c70004; height: 84px; }
+div#header { min-width: 768px; background-color: #FFFFFF; height: 200px; }
 div#form { padding-bottom: 120px; }
-div#footer { min-width: 1080px; background-color: #c70004; height: 68px; color: #FFF; text-align: center; font-size: 12px; padding-top: 10px; }
+div#footer { min-width: 768px; background-color: #FFFFFF; height: 68px; text-align: center; font-size: 12px; padding-top: 10px; }

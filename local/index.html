@@ -3,12 +3,16 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <title>BrightSign User Variables</title>
-<LINK href="local.css" rel="stylesheet" type="text/css">
+<link href="local.css" rel="stylesheet" type="text/css">
+<link href="apprise.css" rel="stylesheet" type="text/css">
 <script src="jquery-1.9.1.min.js"></script>
+<script src="apprise-1.5.full.js"></script>
 <script src="local.js"></script>
+<script src="waitlist.js"></script>
 <script>
 
 var localPlayerIP="http://192.168.70.100:8080";
+var button_size=60;
 
 window.onload = function() {
 
@@ -19,38 +23,79 @@ window.onload = function() {
   } else {
     bsp=bsputils_init(isBSP,true,localPlayerIP);
   }
-  printObj(bsp);
+  actWaitListVars("get",doVars);  
+  //setInterval(function(){actWaitListVars("get",doVars)},15000);
 
-  //getID(printObj);
-  getUserVars(doUserVars);
 };
 
-function doUserVars(us)
-{
-  console.log("doUserVars");
-  printObj(us);
 
+function rowClicked(x)
+{
+  var name = x.cells[0].innerText || x.cells[0].textContent;
+  actWaitListVars("delete",doVars,name);
+}
+
+function cellClickedDelete(x)
+{
+  var tr=x.parentNode;
+  var na = tr.cells[0].innerText || x.cells[0].textContent;
+  var nu = tr.cells[1].innerText || x.cells[1].textContent;
+  var name = na.trim();
+  var number = nu.trim();
+
+  var str="Are you sure you want to delete "+name+" party of "+number+"?";
+  apprise(str, {'verify':true}, function(c) {
+    if(c==true)  
+    {
+      i=tr.parentNode.rowIndex;
+      console.log(i);
+      tr.parentNode.deleteRow(i);
+//      tr.remove();
+      actWaitListVars("delete",nullDraw,name);
+    }
+  });
+}
+
+function nullDraw()
+{
+
+}
+
+function cellClickedEdit(x)
+{
+  var tr=x.parentNode;
+  var name = tr.cells[0].innerText || x.cells[0].textContent;
+  printObj(name);
+}
+
+function doVars(us)
+{
+  console.log("doVars");
   if(typeof us === 'undefined')
   {
-    console.log("userVars not defined");
+    console.log("waitListVars not defined");
     return;
   }
 
-  s="";
+  var s="";
+  s += '<table id="waitlist-table" cellspacing=0 cellpadding=2 border=0>';
+//  s += "<tr><th>Name</th><th>Number</th><th>Edit</th><th>Delete</th></tr>";
   for(var x=0;x<us.length;x++)
   {
     var o=us[x];
     printObj(o);
-    s = s + o.key+": <input type=\"text\" name=\""+o.key+"\" value=\""+o.value+"\" size=\"60\" /> <br/>";
+    //s+='<tr onclick="rowClicked(this)">';
+    s+='<tr>';
+    s+='<td width="100px"><center>'+o.name+'</center></td>';
+    s+='<td width="50px"><center>'+o.number+'</center></td>';
+    s+='<td style="visibility:hidden;"><button class="delbtn">Delete</button></td>';
+    s+='<td onclick="cellClickedDelete(this)"><img src="del.png" class="listbuttons"></td>';
+    s+="</tr>";
   } 
-
+  s+="</table>"
   console.log(s);
-  $('div.form-data').html(s);
-
-}
-
-
-
+  $('div.waitlist').html(s);
+};
 
 
 </script>
@@ -58,23 +103,33 @@ function doUserVars(us)
 </head>
 <body>
 <div id="header">
-<img src="logo.png" alt="LOGO">
-</div>
 <center>
-<h1>Brightsign Player User Variables</h1>
-<div id="form">
-<form action="/SetValues" method="post">
-<div class="form-data"></div>
-
-<input class="button" type="submit" value="Set Values" /><br />
-</form>
+<img src="logo.png" alt="LOGO">
+</center>
+</div>
+<p>
+<center>
+<h1>WaitList Page</h1>
+<p>
+<center>
+<img src="add.png" class="listbuttons">
+</center>
+<p>
+<hr width="75%">  
+<p>
+<div class="waitlist"></div>
 </div>
 </center>
+<p>
+<hr width="75%">  
 <div>
 <br>
 </div>
+<center>
+<img src="BrightSign_logo.png" alt="LOGO">
+</center>
 <div id="footer">
-	<center>(c) 2013 Brightsign LLC</center>
+  <center>(c) 2013 Brightsign LLC</center>
 </div>
 </body>
 </html>

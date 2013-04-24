@@ -55,6 +55,25 @@ function cellClickedDelete(x)
   });
 }
 
+function cellClickedEdit(x)
+{
+  var tr=x.parentNode;
+  var na = tr.cells[0].innerText || x.cells[0].textContent;
+  var nu = tr.cells[1].innerText || x.cells[1].textContent;
+  var name = na.trim();
+  var number = nu.trim();
+
+  var str="Are you sure you want to edit "+name+" party of "+number+"?";
+  apprise(str, {'verify':true}, function(c) {
+    if(c==true)  
+    {
+      var result = $('tr').find('td:contains('+name+')');
+      var row = $(result).closest('tr');
+    }
+  });
+}
+
+
 function getCell( cell )
 {
 }
@@ -64,12 +83,6 @@ function nullDraw()
 
 }
 
-function cellClickedEdit(x)
-{
-  var tr=x.parentNode;
-  var name = tr.cells[0].innerText || x.cells[0].textContent;
-  printObj(name);
-}
 
 function doVars(us)
 {
@@ -91,7 +104,7 @@ function doVars(us)
     s+='<tr>';
     s+='<td width="100px"><center>'+o.name+'</center></td>';
     s+='<td width="50px"><center>'+o.number+'</center></td>';
-    s+='<td style="visibility:hidden;"><button class="delbtn">Delete</button></td>';
+    s+='<td onclick="cellClickedEdit(this)"><img src="edit.png" class="listbuttons"></td>';
     s+='<td onclick="cellClickedDelete(this)"><img src="del.png" class="listbuttons"></td>';
     s+="</tr>";
   } 

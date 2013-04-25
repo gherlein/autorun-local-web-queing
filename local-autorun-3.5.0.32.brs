@@ -22535,8 +22535,6 @@ Sub ActWaitListVars(userData as Object, e as Object)
 
   mVar = userData.mVar
   args = e.GetFormData()
-  'print args
-print "XXXXXXXXXXX"
 
   act =args.action.trim()
   print "action string: "+act

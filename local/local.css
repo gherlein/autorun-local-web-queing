@@ -4,7 +4,7 @@ body {
 body,td,th {
                 color: #000;
                 font-family: Verdana, Geneva, sans-serif;
-                font-size: 24px;
+                font-size: 36px;
 }
 
 input {
@@ -12,6 +12,8 @@ input {
                 font-family: Verdana, Geneva, sans-serif;
                 font-size: 24px;
 }
+
+
 
 img.listbuttons { height: 60px; width: 60px;}
 

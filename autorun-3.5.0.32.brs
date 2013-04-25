@@ -2,8 +2,8 @@ Library "autoplugins.brs"
 
 Sub Main()
 
-    autorunVersion$ = "6.6.8" ' BA 3.6.0.8
-    customAutorunVersion$ = "6.6.0"
+    autorunVersion$ = "6.5.28" ' BA 3.5.0.32
+    customAutorunVersion$ = "6.5.0"
 
     debugParams = EnableDebugging()
 	
@@ -40,14 +40,11 @@ Sub Main()
 	versionNumber% = modelObject.GetVersionNumber()
 
 	if sysInfo.deviceFamily$ = "panther" then
-		minVersionNumber% = 263691
-		minVersion$ = "4.6.11"
+		minVersionNumber% = 263212
+		minVersion$ = "4.4.44"
 	else if sysInfo.deviceFamily$ = "cheetah" then
-		minVersionNumber% = 263691
-		minVersion$ = "4.6.11"
-	else if sysInfo.deviceFamily$ = "puma" then
-		minVersionNumber% = 263691
-		minVersion$ = "4.6.11"
+		minVersionNumber% = 263212
+		minVersion$ = "4.4.44"
 	else
 		minVersionNumber% = 199189
 		minVersion$ = "3.10.21"
@@ -69,6 +66,15 @@ Sub Main()
         tw.Show()
 		sleep(120000)
         RebootSystem()
+'       msgPort = CreateObject("roMessagePort")
+'		gpioPort = CreateObject("roGpioControlPort")
+'		gpioPort.SetPort(msgPort)
+'       while true
+'	        msg = wait(0, msgPort)
+'			if type(msg) = "roGpioButton" and msg.GetInt()=12 then
+'		        stop
+'			endif
+'        end while
 	endif
 	
 	' determine if the storage device is writable
@@ -288,6 +294,8 @@ Sub RunBsp(sysFlags As Object, sysInfo As Object, diagnosticCodes As Object)
     msgPort = CreateObject("roMessagePort")
     
     BSP = newBSP(sysFlags, msgPort)
+
+	BSP.stripTwitterUserNames = true
 		
 	BSP.GetRegistrySettingValue = GetRegistrySettingValue
 	BSP.ReadCachedRegistrySettings = ReadCachedRegistrySettings
@@ -301,12 +309,6 @@ Sub RunBsp(sysFlags As Object, sysInfo As Object, diagnosticCodes As Object)
 
 	BSP.sh = CreateObject("roStorageHotplug")
     BSP.sh.SetPort(msgPort)
-
-' create objects for lighting controllers
-	BSP.blcs = CreateObject("roArray", 3, true)
-	BSP.blcs[0] = CreateObject("roControlPort", "LightController-0-CONTROL")
-	BSP.blcs[1] = CreateObject("roControlPort", "LightController-1-CONTROL")
-	BSP.blcs[2] = CreateObject("roControlPort", "LightController-2-CONTROL")
 
 ' create objects for all attached button panels
 
@@ -348,11 +350,6 @@ Sub RunBsp(sysFlags As Object, sysInfo As Object, diagnosticCodes As Object)
     BSP.diagnostics.SetSystemInfo(sysInfo, diagnosticCodes)
     BSP.logging.SetSystemInfo(sysInfo, diagnosticCodes)
 
-    ' *****  Start Custom code
-	Print "Executing Extra Code"
-	GetGlobalAA().extra = initExtra(BSP, msgPort)
-	' ***** End Custom Code
-
 	' if the device is configured for local file networking with content transfers, require that the storage is writable
 	if BSP.registrySettings.lwsConfig$ = "c" and BSP.sysInfo.storageIsWriteProtected then DisplayStorageDeviceLockedMessage()
 
@@ -373,62 +370,28 @@ Sub RunBsp(sysFlags As Object, sysInfo As Object, diagnosticCodes As Object)
 
         BSP.GetIDAA =               { HandleEvent: GetID, mVar: BSP }
         BSP.GetUDPEventsAA =        { HandleEvent: GetUDPEvents, mVar: BSP }
+        BSP.GetRemoteDataAA =       { HandleEvent: GetRemoteData, mVar: BSP }
         BSP.GetCurrentStatusAA =    { HandleEvent: GetCurrentStatus, mVar: BSP }
         BSP.FilePostedAA =          { HandleEvent: FilePosted, mVar: BSP }
         BSP.SyncSpecPostedAA =      { HandleEvent: SyncSpecPosted, mVar: BSP }
         BSP.PrepareForTransferAA =  { HandleEvent: PrepareForTransfer, mVar: BSP }
 
         BSP.GetConfigurationPageAA ={ HandleEvent: GetConfigurationPage, mVar: BSP }
-    		BSP.SetValuesAA =			{ HandleEvent: SetValues, mVar: BSP }
+		BSP.SetValuesAA =			{ HandleEvent: SetValues, mVar: BSP }
+
+		BSP.localServer.AddGetFromFile({ url_path: "/GetAutorun", content_type: "text/plain; charset=utf-8", filename: "autorun.brs"})
 
         BSP.localServer.AddGetFromEvent({ url_path: "/GetID", user_data: BSP.GetIDAA })
         BSP.localServer.AddGetFromEvent({ url_path: "/GetUDPEvents", user_data: BSP.GetUDPEventsAA })
+        BSP.localServer.AddGetFromEvent({ url_path: "/GetRemoteData", user_data: BSP.GetRemoteDataAA })
         BSP.localServer.AddGetFromEvent({ url_path: "/GetCurrentStatus", user_data: BSP.GetCurrentStatusAA, passwords: credentials })        
 
         BSP.localServer.AddPostToFile({ url_path: "/UploadFile", destination_directory: GetDefaultDrive(), user_data: BSP.FilePostedAA, passwords: credentials })
         BSP.localServer.AddPostToFile({ url_path: "/UploadSyncSpec", destination_directory: GetDefaultDrive(), user_data: BSP.SyncSpecPostedAA, passwords: credentials })
         BSP.localServer.AddPostToFile({ url_path: "/PrepareForTransfer", destination_directory: GetDefaultDrive(), user_data: BSP.PrepareForTransferAA, passwords: credentials })
 	
-		    BSP.localServer.AddGetFromEvent({ url_path: "/", user_data: BSP.GetConfigurationPageAA})
+		BSP.localServer.AddGetFromEvent({ url_path: "/", user_data: BSP.GetConfigurationPageAA})
         BSP.localServer.AddPostToFormData({ url_path: "/SetValues", user_data: BSP.SetValuesAA })
-
-        ' start custom code'
-        BSP.GetUserVarsAA =         { HandleEvent: GetUserVars, mVar: BSP }
-        BSP.localServer.AddGetFromEvent({ url_path: "/GetUserVars", user_data: BSP.GetUserVarsAA})
-
-        BSP.GetWaitListAA ={ HandleEvent: GetWaitListPage, mVar: BSP }
-        BSP.localServer.AddGetFromEvent({ url_path: "/WaitList", user_data: BSP.GetWaitListAA})
-
-        BSP.GetWaitListVarsAA =         { HandleEvent: GetWaitListVars, mVar: BSP }
-        BSP.localServer.AddGetFromEvent({ url_path: "/GetWaitListVars", user_data: BSP.GetWaitListVarsAA})
-
-
-        BSP.AddWaitListEntryAA =         { HandleEvent: AddWaitListEntry, mVar: BSP }
-        BSP.localServer.AddPostToFormData({ url_path: "/AddWaitListEntry", user_data: BSP.AddWaitListEntryAA })
-
-        BSP.DelWaitListEntryAA =         { HandleEvent: DelWaitListEntry, mVar: BSP }
-        BSP.localServer.AddPostToFormData({ url_path: "/DelWaitListEntry", user_data: BSP.DelWaitListEntryAA })
-
-        BSP.ActWaitListVarsAA =         { HandleEvent: ActWaitListVars, mVar: BSP }
-        BSP.localServer.AddPostToFormData({ url_path: "/ActWaitListVars", user_data: BSP.ActWaitListVarsAA })
-
-        ' arrays to hold the waiting list data'
-        BSP.waitlistNames=[]
-        BSP.waitlistSizes=[]
-
-        ' add all the files in the local folder to be served up by the local web server '
-        baseDir="SD:/local"
-        list=ListDir(baseDir)
-        for each file in list
-          ext=GetFileExtension(file)
-          ct=GetMimeTypeByExtension(ext)
-          print ext+": "+ct
-          u="/"+file
-          f=baseDir+u
-          BSP.localServer.AddGetFromFile({ url_path: u, filename: f, content_type: ct })
-        next
-
-		    ' end custom code'
 
         unitName$ = BSP.registrySettings.unitName$
         unitNamingMethod$ = BSP.registrySettings.unitNamingMethod$
@@ -726,7 +689,6 @@ Function newBSP(sysFlags As Object, msgPort As Object) As Object
 	BSP.UnmuteAudioConnector = UnmuteAudioConnector
 	BSP.SetAllAudioOutputs = SetAllAudioOutputs
 	BSP.SetAudioMode1 = SetAudioMode1
-	BSP.MuteAudioOutput = MuteAudioOutput
 	BSP.MuteAudioOutputs = MuteAudioOutputs
 	BSP.SetConnectorVolume = SetConnectorVolume
 	BSP.ChangeConnectorVolume = ChangeConnectorVolume
@@ -789,6 +751,7 @@ Function newBSP(sysFlags As Object, msgPort As Object) As Object
     BSP.GetID = GetID
     BSP.GetCurrentStatus = GetCurrentStatus
 	BSP.GetUDPEvents = GetUDPEvents
+	BSP.GetRemoteData = GetRemoteData
     BSP.FilePosted = FilePosted
     BSP.SyncSpecPosted = SyncSpecPosted
     BSP.PrepareForTransfer = PrepareForTransfer
@@ -813,14 +776,68 @@ Function newBSP(sysFlags As Object, msgPort As Object) As Object
 	BSP.ExportVariablesDBToAsciiFile = ExportVariablesDBToAsciiFile
 	BSP.GetUserVariable = GetUserVariable
 	BSP.ResetVariables = ResetVariables
-	BSP.ChangeUserVariableValue = ChangeUserVariableValue
 
     return BSP
     
 End Function
 
 
+Sub GetConfigurationPage(userData as Object, e as Object)
 
+    mVar = userData.mVar
+
+'	print "respond to GetConfigurationPage request"
+	e.AddResponseHeader("Content-type", "text/html; charset=utf-8")
+
+	s = ""
+	s = s + "<!DOCTYPE html>" + Chr(13) + Chr(10)
+	s = s + "<html>" + Chr(13) + Chr(10)
+	s = s + "<head>" + Chr(13) + Chr(10)
+	s = s + "<meta http-equiv=" + chr(34) + "Content-Type" + chr(34) + " content=" + chr(34) + "text/html; charset=utf-8" + chr(34) + " />" + Chr(13) + Chr(10)
+	s = s + "<title>BrightSign User Variables</title>" + Chr(13) + Chr(10)
+
+	s = s + "<style>" + Chr(13) + Chr(10)
+	s = s + "body {" + Chr(13) + Chr(10)
+	s = s + "                background-color: #CCC;" + Chr(13) + Chr(10)
+	s = s + "}" + Chr(13) + Chr(10)
+	s = s + "body,td,th {" + Chr(13) + Chr(10)
+	s = s + "                color: #000;" + Chr(13) + Chr(10)
+	s = s + "                font-family: Verdana, Geneva, sans-serif;" + Chr(13) + Chr(10)
+	s = s + "                font-size: 36px;" + Chr(13) + Chr(10)
+	s = s + "}" + Chr(13) + Chr(10)
+
+	s = s + "input {" + Chr(13) + Chr(10)
+	s = s + "                font-size: 24px;" + Chr(13) + Chr(10)
+	s = s + "}" + Chr(13) + Chr(10)
+
+	s = s + "</style>" + Chr(13) + Chr(10)
+
+	s = s + "</head>" + Chr(13) + Chr(10)
+	s = s + "<body>" + Chr(13) + Chr(10)
+	s = s + "    <center>" + Chr(13) + Chr(10)
+	s = s + "        <form action=" + chr(34) + "/SetValues" + chr(34) + " method=" + chr(34) + "post" + chr(34) + ">" + Chr(13) + Chr(10)
+
+	for each presentationName in mVar.userVariableSets
+		if presentationName = mVar.activePresentation$ then
+			userVariables = mVar.userVariableSets.Lookup(presentationName)
+			for each variableName in userVariables
+				userVariable = userVariables.Lookup(variableName)
+				s = s + variableName + ":<br>" + Chr(13) + Chr(10)
+				s = s + "<input type=" + chr(34) + "text" + chr(34) + " name=" + chr(34) + variableName + chr(34) + " value=" + chr(34) + userVariable.GetCurrentValue() + chr(34) + " size=" + chr(34) + "100" + chr(34) + " /> <br />" + Chr(13) + Chr(10)
+			next
+		endif
+	next
+
+'	s = s + "<input class=" + chr(34) + "button" + chr(34) + " type=" + chr(34) + "submit" + chr(34) + " name=" + chr(34) + "Submit" + chr(34) + " value=" + chr(34) + "Set Values" + chr(34) + " /><br />" + Chr(13) + Chr(10)
+	s = s + "<input class=" + chr(34) + "button" + chr(34) + " type=" + chr(34) + "submit" + chr(34) + " value=" + chr(34) + "Set Values" + chr(34) + " /><br />" + Chr(13) + Chr(10)
+	s = s + "</form>" + Chr(13) + Chr(10)
+	s = s + "</center>" + Chr(13) + Chr(10)
+	s = s + "</body>" + Chr(13) + Chr(10)
+	s = s + "</html>" + Chr(13) + Chr(10)
+	e.SetResponseBodyString(s)
+	if not e.SendResponse(200) then stop
+
+End Sub
 
 
 Sub SetValues(userData as Object, e as Object)
@@ -864,18 +881,11 @@ Sub SetValues(userData as Object, e as Object)
 End Sub
 
 
-Sub GetID(userData as Object, e as Object)
-
-    mVar = userData.mVar
-    
-'    print "respond to GetID request"
+Sub PopulateIDData(mVar As Object, root As Object)
 
     unitName$ = mVar.registrySettings.unitName$
     unitNamingMethod$ = mVar.registrySettings.unitNamingMethod$
     unitDescription$ = mVar.registrySettings.unitDescription$
-
-    root = CreateObject("roXMLElement")
-    root.SetName("BrightSignID")
 
     elem = root.AddElement("unitName")
     elem.SetBody(unitName$)
@@ -892,28 +902,20 @@ Sub GetID(userData as Object, e as Object)
     elem = root.AddElement("functionality")
     elem.SetBody(mVar.lwsConfig$)
     
-    xml = root.GenXML({ indent: " ", newline: chr(10), header: true })
-
-    e.AddResponseHeader("Content-type", "text/xml")
-    e.SetResponseBodyString(xml)
-    e.SendResponse(200)
-      
 End Sub
 
 
-Sub GetUDPEvents(userData as Object, e as Object)
-
-    mVar = userData.mVar
-
-    root = CreateObject("roXMLElement")
-    root.SetName("BrightSignUDPEvents")
+Sub PopulateUDPData(mVar As Object, root As Object)
 
 	sign = mVar.sign
 
 	if type(sign) = "roAssociativeArray" then
 
-		elem = root.AddElement("port")
+		elem = root.AddElement("receivePort")
 		elem.SetBody(StripLeadingSpaces(stri(sign.udpReceivePort)))
+
+		elem = root.AddElement("destinationPort")
+		elem.SetBody(StripLeadingSpaces(stri(sign.udpSendPort)))
 
 		udpEvents = { }
 		for each zoneHSM in sign.zonesHSM
@@ -941,6 +943,60 @@ Sub GetUDPEvents(userData as Object, e as Object)
 		next
 
 	endif
+
+End Sub
+
+
+Sub GetID(userData as Object, e as Object)
+
+    mVar = userData.mVar
+    
+'    print "respond to GetID request"
+
+    root = CreateObject("roXMLElement")
+    root.SetName("BrightSignID")
+
+	PopulateIDData(mVar, root)
+
+    xml = root.GenXML({ indent: " ", newline: chr(10), header: true })
+
+    e.AddResponseHeader("Content-type", "text/xml")
+    e.SetResponseBodyString(xml)
+    e.SendResponse(200)
+      
+End Sub
+
+
+Sub GetUDPEvents(userData as Object, e as Object)
+
+    mVar = userData.mVar
+
+    root = CreateObject("roXMLElement")
+    root.SetName("BrightSignUDPEvents")
+
+	PopulateUDPData(mVar, root)
+
+    xml = root.GenXML({ indent: " ", newline: chr(10), header: true })
+
+    e.AddResponseHeader("Content-type", "text/xml")
+    e.SetResponseBodyString(xml)
+    e.SendResponse(200)
+
+End Sub
+
+
+Sub GetRemoteData(userData as Object, e as Object)
+
+    mVar = userData.mVar
+    
+'    print "respond to GetRemoteData request"
+
+    root = CreateObject("roXMLElement")
+    root.SetName("BrightSignRemoteData")
+
+	PopulateIDData(mVar, root)
+
+	PopulateUDPData(mVar, root)
 
     xml = root.GenXML({ indent: " ", newline: chr(10), header: true })
 
@@ -1401,16 +1457,6 @@ Function NewGlobalVariables() As Object
 End Function
 
 
-Function newPresentation(bsp As Object, presentationXML As Object) As Object
-
-	presentation = {}
-	presentation.name$ = presentationXML.name.GetText()
-	presentation.path$ = presentationXML.path.GetText()
-
-	return presentation
-
-End Function
-
 
 Function newLiveDataFeed(bsp As Object, liveDataFeedXML As Object) As Object
 
@@ -1454,7 +1500,6 @@ End Function
 Sub Restart(presentationName$ As String)
 
 	m.liveDataFeeds = CreateObject("roAssociativeArray")
-	m.presentations = CreateObject("roAssociativeArray")
 
 	for n% = 0 to 2
 		for i% = 0 to 10
@@ -1613,11 +1658,8 @@ Sub Restart(presentationName$ As String)
 
 	' reset connector volumes
 	m.analogVolume% = 100
-	m.analog2Volume% = 100
-	m.analog3Volume% = 100
 	m.hdmiVolume% = 100
 	m.spdifVolume% = 100
-	m.usbVolume% = 100
 
 	' reclaim memory
 	RunGarbageCollector()
@@ -2333,7 +2375,7 @@ Sub StartPlayback()
 		videoMode = invalid
 	endif
 
-	' unmute all audio explicitly for Cheetah / Panther / Puma
+	' unmute all audio explicitly for Cheetah / Panther
 	m.UnmuteAllAudio()
 
 	numZones% = sign.zonesHSM.Count()
@@ -3002,21 +3044,6 @@ Function newSign(BrightAuthor As Object, globalVariables As Object, bsp As Objec
 				userVariable.liveDataFeed = bsp.liveDataFeeds.Lookup(userVariable.liveDataFeedName$)
 			endif
 		next
-	endif
-
-' parse presentations
-
-	presentationsContainer = BrightAuthor.meta.presentationIdentifiers
-
-	if presentationsContainer.Count() = 1 then
-	
-		presentationsXML = presentationsContainer.GetChildElements()
-
-		for each presentationXML in presentationsXML
-			presentation = newPresentation(bsp, presentationXML)
-			bsp.presentations.AddReplace(presentation.name$, presentation)
-		next
-
 	endif
 
 ' parse BoseProducts.xml
@@ -4225,10 +4252,7 @@ End Sub
 Function newConditionalTarget(bsp As Object, conditionalTargetXML As Object, conditionalTargets As Object)
 
 	userVariableName$ = conditionalTargetXML.variableName.GetText()
-	operator$ = conditionalTargetXML.operator.GetText()
-	if operator$ = "" then operator$ = "EQ"
 	userVariableValue$ = conditionalTargetXML.variableValue.GetText()
-	userVariableValue2$ = conditionalTargetXML.variableValue2.GetText()
 	targetMediaState$ = conditionalTargetXML.targetMediaState.GetText()
     nextIsPrevious$ = conditionalTargetXML.targetIsPreviousState.GetText()
 
@@ -4237,9 +4261,7 @@ Function newConditionalTarget(bsp As Object, conditionalTargetXML As Object, con
 
 		conditionalTarget = { }
 		conditionalTarget.userVariable = userVariable
-		conditionalTarget.operator$ = operator$
 		conditionalTarget.userVariableValue$ = userVariableValue$
-		conditionalTarget.userVariableValue2$ = userVariableValue2$
 		conditionalTarget.targetMediaState$ = targetMediaState$
 		conditionalTarget.targetMediaStateIsPreviousState = false
 		if nextIsPrevious$ <> "" and lcase(nextIsPrevious$) = "yes" then
@@ -4343,15 +4365,22 @@ Function newState(bsp As Object, zoneHSM As Object, sign As Object, stateXML As 
 		newEventHandlerPlaylistItem(stateXML.eventHandlerItem, state)
 		state.type$ = "eventHandler"
 		
-    else if stateXML.liveTextItem.Count() = 1 then
+    else if stateXML.eventHandler2Item.Count() = 1 then
+    
+		newEventHandlerPlaylistItem(stateXML.eventHandler2Item, state)
+		state.type$ = "eventHandler"
+		
+	else if stateXML.liveTextItem.Count() = 1 then
     
 		newTemplatePlaylistItemFromLiveTextPlaylistItem(bsp, stateXML.liveTextItem, state)
 		state.type$ = "template"
+        zoneHSM.numImageItems% = zoneHSM.numImageItems% + 1
 
 	else if stateXML.templatePlaylistItem.Count() = 1 then
 	
 		newTemplatePlaylistItem(bsp, stateXML.templatePlaylistItem, state)
 		state.type$ = "template"
+        zoneHSM.numImageItems% = zoneHSM.numImageItems% + 1
 				
     else if stateXML.audioInItem.Count() = 1 then
     
@@ -4453,7 +4482,7 @@ Function newState(bsp As Object, zoneHSM As Object, sign As Object, stateXML As 
 
 	else if stateXML.html5Item.Count() = 1 then
 
-		newHtml5PlaylistItem(bsp, stateXML.html5Item, state)
+		newHtml5PlaylistItem(stateXML.html5Item, state)
 		state.type$ = "html5"
 
 	endif           
@@ -4718,93 +4747,35 @@ Sub newCmd(bsp As Object, cmdXML As Object, cmds As Object)
 					buttonNumber% = int(val(buttonNumber$))
 					bsp.bpOutputUsed[buttonPanelIndex%, buttonNumber%] = true
 				endif
-            else if bsCmd.name$ = "switchPresentation" then ' required for compatibility with old published presentations
-				presentationName$ = bsCmd.parameters.presentationName.GetCurrentParameterValue()
-				if presentationName$ <> "" then
-					presentation = {}
-					presentation.name$ = presentationName$
-					presentation.path$ = presentationName$
-					bsp.presentations.AddReplace(presentation.name$, presentation)
-				endif
-			endif
+            endif
         next
     endif
         
 End Sub
 
 
-Sub UpdateWidgetVisibility(showImage As Boolean, hideImage As Boolean, clearImage As Boolean, showCanvas As Boolean, hideCanvas As Boolean, showHtml As Boolean, hideHtml As Boolean)
+Sub ShowImagePlane()
 
-	if hideImage then
-		if type(m.imagePlayer) = "roImageWidget" then
-			m.imagePlayer.Hide()
-		endif
+	if type(m.canvasWidget) = "roCanvasWidget" then
+		m.canvasWidget.Hide()
 	endif
 
-	if clearImage then
-		if type(m.imagePlayer) = "roImageWidget" then
-			m.imagePlayer.StopDisplay()
-		endif
+	if type(m.imagePlayer) = "roImageWidget" then
+		m.imagePlayer.Show()
 	endif
-
-	if hideCanvas then
-		if type(m.canvasWidget) = "roCanvasWidget" then
-			m.canvasWidget.Hide()
-		endif
-	endif
-
-	if hideHtml then
-		if type(m.displayedHtmlWidget) = "roHtmlWidget" then
-			m.displayedHtmlWidget.Hide()
-'			m.displayedHtmlWidget = invalid
-		endif
-	endif
-
-	if showImage then
-		if type(m.imagePlayer) = "roImageWidget" then
-			m.imagePlayer.Show()
-		endif
-	endif
-
-	if showCanvas then
-		if type(m.canvasWidget) = "roCanvasWidget" then
-			m.canvasWidget.Show()
-		endif
-	endif
-
-	if showHtml then
-		if type(m.displayedHtmlWidget) = "roHtmlWidget" then
-			m.displayedHtmlWidget.Show()
-		endif
-	endif
-
-End Sub
-
-
-Sub ShowImageWidget()
-
-	m.UpdateWidgetVisibility(true, false, false, false, true, false, true)
 
 End Sub
 
 
 Sub ClearImagePlane()
 
-	m.UpdateWidgetVisibility(false, false, true, false, true, false, true)
+    if type(m.imagePlayer) = "roImageWidget" then
+        m.imagePlayer.StopDisplay()
+    endif
 
-End Sub
-
-
-Sub ShowCanvasWidget()
-
-	m.UpdateWidgetVisibility(false, true, false, true, false, false, true)
-
-End Sub
-
-
-Sub ShowHtmlWidget()
-
-	m.UpdateWidgetVisibility(false, true, true, false, true, true, false)
+	if type(m.canvasWidget) = "roCanvasWidget" then
+		m.canvasWidget.Hide()
+	endif
 
 End Sub
 
@@ -4906,6 +4877,13 @@ End Sub
 
 Sub newEventHandlerPlaylistItem(playlistItemXML As Object, state As Object)
 
+	state.stopPlayback = false
+
+	stopPlayback$ = playlistItemXML.stopPlayback.getText()
+	if lcase(stopPlayback$) = "true" then
+		state.stopPlayback = true
+	endif
+
     state.HStateEventHandler = STEventHandlerEventHandler
     state.MediaItemEventHandler = MediaItemEventHandler
 	state.ExecuteTransition = ExecuteTransition
@@ -4917,26 +4895,20 @@ Sub newEventHandlerPlaylistItem(playlistItemXML As Object, state As Object)
 End Sub
 
 
-Sub newHtml5PlaylistItem(bsp As Object, playlistItemXML As Object, state As Object)
+Sub newHtml5PlaylistItem(playlistItemXML As Object, state As Object)
 
 	state.name$ = playlistItemXML.name.GetText()
 	
 	contentIsLocal$ = playlistItemXML.contentLocal.GetText()
 	if lcase(contentIsLocal$) = "true" then
 		state.contentIsLocal = true
-		state.url = invalid
 	else
 		state.contentIsLocal = false
-		url$ = playlistItemXML.url.GetText()
-		if url$ <> "" then
-			state.url = newTextParameterValue(url$)
-		else
-			state.url = newParameterValue(bsp, playlistItemXML.urlSpec.parameterValue)
-		endif
 	endif
 
 	state.prefix$ = playlistItemXML.prefix.GetText()
 	state.filePath$ = playlistItemXML.filePath.GetText()
+	state.url$ = playlistItemXML.url.GetText()
 
 	state.enableExternalData = false
 	if lcase(playlistItemXML.enableExternalData.GetText()) = "true" then
@@ -5422,15 +5394,7 @@ Sub newIndexedLiveTextDataEntryTemplateItem(bsp As Object, templateItems As Obje
 	templateItem = newLiveTextDataEntryTemplateItem(bsp, templateItems, templateItemXML)
 
 	index$ = templateItemXML.index.GetText()
-	if index$ <> "" then
-		' old style index was zero based; new style is 1 based.
-		index% = int(val(index$))
-		index% = index% + 1
-		index$ = StripLeadingSpaces(str(index%))
-		templateItem.index = newTextParameterValue(index$)
-	else
-		templateItem.index = newParameterValue(bsp, templateItemXML.indexSpec.parameterValue)
-	endif
+	templateItem.index% = int(val(index$))
 
 	templateItems.push(templateItem)
 
@@ -5441,12 +5405,7 @@ Sub newTitledLiveTextDataEntryTemplateItem(bsp As Object, templateItems As Objec
 
 	templateItem = newLiveTextDataEntryTemplateItem(bsp, templateItems, templateItemXML)
 
-	title$ = templateItemXML.title.GetText()
-	if title$ <> "" then
-		templateItem.title = newTextParameterValue(title$)
-	else
-		templateItem.title = newParameterValue(bsp, templateItemXML.titleSpec.parameterValue)
-	endif
+	templateItem.title$ = templateItemXML.title.GetText()
 
 	templateItems.push(templateItem)
 
@@ -5719,16 +5678,11 @@ Sub newTemplatePlaylistItemFromLiveTextPlaylistItem(bsp As Object, playlistItemX
 		else if textItem.textType$ = "indexedLiveTextData" then
 			templateItem.type$ = "indexedLiveTextDataEntryTemplateItem"
 			templateItem.liveDataFeed = textItem.liveDataFeed
-
-			' old style index was zero based; new style is 1 based.
-			index% = textItem.index%
-			index% = index% + 1
-			index$ = StripLeadingSpaces(str(index%))
-			templateItem.index = newTextParameterValue(index$)
+			templateItem.index% = textItem.index%
 		else if textItem.textType$ = "titledLiveTextData" then
 			templateItem.type$ = "titledLiveTextDataEntryTemplateItem"
 			templateItem.liveDataFeed = textItem.liveDataFeed
-			templateItem.title = newTextParameterValue(textItem.title$)
+			templateItem.title$ = textItem.title$
 		else if textItem.textType$ = "mediaCounter" then
 			templateItem.type$ = "mediaCounterTemplateItem"
 			templateItem.userVariable = textItem.userVariable
@@ -6151,6 +6105,8 @@ Sub newPlayFilePlaylistItem(bsp As Object, playlistItemXML As Object, state As O
 
 	state.filesTable = CreateObject("roAssociativeArray")
 
+	state.mediaType$ = playlistItemXML.mediaType.GetText()
+
     state.slideTransition% = GetSlideTransitionValue(playlistItemXML.slideTransition.GetText())
 
     files = playlistItemXML.filesTable.file
@@ -6281,31 +6237,14 @@ Function newTwitterPlaylistItem(bsp As Object, zoneHSM As Object, playlistItemXM
     twitterSpec = playlistItemXML.twitterSpec
     twitterSpecAttrs = twitterSpec.GetAttributes()
 
-	twitterUserName$ = twitterSpecAttrs["userName"]
-	jsonUrl$ = "https://api.twitter.com/1/statuses/user_timeline.json?screen_name=" + twitterUserName$
-	url = newTextParameterValue(jsonUrl$)
-
-	if type(twitterSpecAttrs["updateInterval"]) = "roString" then
-		updateInterval$ = twitterSpecAttrs["updateInterval"]
-		if updateInterval$ = "" then
-			updateInterval$ = "300"
-		endif
-		updateInterval% = int(val(updateInterval$))
-	else
-		updateInterval% = 300
-	endif
-	liveDataFeed = newLiveDataFeedFromOldDataFormat(url, updateInterval%)
-
-	if not bsp.liveDataFeeds.DoesExist(liveDataFeed.name$) then
-		liveDataFeed.isJSON = true
-		bsp.liveDataFeeds.AddReplace(liveDataFeed.name$, liveDataFeed)
-	else
-		liveDataFeed = bsp.liveDataFeeds.Lookup(liveDataFeed.name$)
-	endif
+	url = newTextParameterValue(twitterSpecAttrs["url"])
+	liveDataFeed = newLiveDataFeedFromOldDataFormat(url, zoneHSM.rssDownloadPeriodicValue%)
+	bsp.liveDataFeeds.AddReplace(liveDataFeed.name$, liveDataFeed)
 
 	item.liveDataFeed = liveDataFeed
     item.rssTitle$ = item.liveDataFeed.name$
 
+	item.isTwitterFeed = true
 	item.twitterUserName$ = twitterSpecAttrs["userName"] + ": "
 	item.isRSSFeed = true
 
@@ -6322,6 +6261,7 @@ Function newRSSDataFeedPlaylistItem(bsp As Object, playlistItemXML As Object) As
 	item.liveDataFeed = bsp.liveDataFeeds.Lookup(liveDataFeedName$)
     item.rssTitle$ = item.liveDataFeed.name$
     
+	item.isTwitterFeed = false    
 	item.isRSSFeed = true
 
     return item
@@ -6337,36 +6277,28 @@ Function newRSSPlaylistItem(bsp As Object, zoneHSM As Object, playlistItemXML As
     rssSpecAttrs = rssSpec.GetAttributes()
     
 	url = newTextParameterValue(rssSpecAttrs["url"])
-
-	url$ = url.GetCurrentParameterValue()
-
-    ' determine if this is a twitter feed
-	isTwitterFeed = false
-    index% = Instr(1, url$, "api.twitter.com")
-    if index% > 0 then
-		userNameIndex% = Instr(1, url$, "screen_name=")
-		if userNameIndex% > 0 then
-			isTwitterFeed = true
-			item.twitterUserName$ = Mid(url$, userNameIndex% + 12)
-			jsonUrl$ = "https://api.twitter.com/1/statuses/user_timeline.json?screen_name=" + item.twitterUserName$
-			url = newTextParameterValue(jsonUrl$)
-		endif
-	endif
-    
 	liveDataFeed = newLiveDataFeedFromOldDataFormat(url, zoneHSM.rssDownloadPeriodicValue%)
 	bsp.liveDataFeeds.AddReplace(liveDataFeed.name$, liveDataFeed)
 
 	item.liveDataFeed = liveDataFeed
     item.rssTitle$ = item.liveDataFeed.name$
-	item.isRSSFeed = true
-	
-	if isTwitterFeed then
-		liveDataFeed.isJSON = true
-	else
-		liveDataFeed.isJSON = false
+
+	url$ = url.GetCurrentParameterValue()
+
+    ' determine if this is a twitter feed
+	item.isTwitterFeed = false
+    index% = Instr(1, url$, "api.twitter.com")
+    if index% > 0 then
+		userNameIndex% = Instr(1, url$, "screen_name=")
+		if userNameIndex% > 0 then
+			item.isTwitterFeed = true
+			item.twitterUserName$ = Mid(url$, userNameIndex% + 12) + ": "
+		endif
 	endif
     
-	return item
+	item.isRSSFeed = true
+
+    return item
     
 End Function
 
@@ -6631,6 +6563,25 @@ REM If there is only one touch event we assume that it is to exit and don't disp
 End Sub
 
 
+' call this function to determine whether or not it is suitable to send the current command to a video player
+' the heuristics are as follows: if the current zone type is AudioOnly or EnhancedAudio and there are audio items
+' in the zone, then don't send the current command to a video player
+Function SendCommandToVideo() As Boolean
+
+	if m.type$ = "AudioOnly" or m.type$ = "EnhancedAudio" then
+		for each stateName in m.stateTable
+			state = m.stateTable[stateName]
+			if (state.type$ = "audio") or (state.type$ = "audioIn") or (state.type$ = "playFile" and state.mediaType$ = "audio") or (state.type$ = "mediaList" and state.mediaType$ = "audio") then
+				return false
+			endif
+		next
+	endif
+
+	return true
+
+End Function
+
+
 Sub MapDigitalOutput(player As Object, parameters As Object)
 
 	parameter = parameters["mapping"]
@@ -6720,66 +6671,21 @@ Sub SetAllAudioOutputs(parameters As Object)
 	parameter = parameters["analog"]
 	analog$ = parameter.GetCurrentParameterValue()
 
-	if parameters.DoesExist("analog2") then
-		parameter = parameters["analog2"]
-		analog2$ = parameter.GetCurrentParameterValue()
-	else
-		analog2$ = "none"
-	endif
-
-	if parameters.DoesExist("analog3") then
-		parameter = parameters["analog3"]
-		analog3$ = parameter.GetCurrentParameterValue()
-	else
-		analog3$ = "none"
-	endif
-
 	parameter = parameters["hdmi"]
 	hdmi$ = parameter.GetCurrentParameterValue()
 
 	parameter = parameters["spdif"]
 	spdif$ = parameter.GetCurrentParameterValue()
 
-	if parameters.DoesExist("usb") then
-		parameter = parameters["usb"]
-		usb$ = parameter.GetCurrentParameterValue()
-	else
-		usb$ = "none"
-	endif
-
 	pcm = CreateObject("roArray", 1, true)
 	compressed = CreateObject("roArray", 1, true)
-	multichannel = CreateObject("roArray", 1, true)
 
-	analogAudioOutput = CreateObject("roAudioOutput", "Analog:1")
-	analog2AudioOutput = CreateObject("roAudioOutput", "Analog:2")
-	analog3AudioOutput = CreateObject("roAudioOutput", "Analog:3")
+	analogAudioOutput = CreateObject("roAudioOutput", "Analog")
 	hdmiAudioOutput = CreateObject("roAudioOutput", "HDMI")
 	spdifAudioOutput = CreateObject("roAudioOutput", "SPDIF")
-	usbAudioOutput = CreateObject("roAudioOutput", "USB")
 
 	if lcase(analog$) <> "none" then
 		pcm.push(analogAudioOutput)
-	endif
-
-	if lcase(analog$) <> "none" then
-		pcm.push(analogAudioOutput)
-	endif
-
-	if lcase(analog2$) = "pcm" then
-		pcm.push(analog2AudioOutput)
-	endif
-
-	if lcase(analog3$) = "pcm" then
-		pcm.push(analog3AudioOutput)
-	endif
-
-	if lcase(analog$)="multichannel" then
-		multichannel.push(analogAudioOutput)
-	else if lcase(analog2$)="multichannel" then
-		multichannel.push(analog2AudioOutput)
-	else if lcase(analog3$)="multichannel" then
-		multichannel.push(analog3AudioOutput)
 	endif
 
 	if lcase(hdmi$) = "passthrough" then
@@ -6794,12 +6700,6 @@ Sub SetAllAudioOutputs(parameters As Object)
 		pcm.push(spdifAudioOutput)
 	endif
 
-	if lcase(usb$) = "pcm" then
-		pcm.push(usbAudioOutput)
-	else if lcase(usb$) = "multichannel" then
-		multichannel.push(usbAudioOutput)
-	endif
-
 	if pcm.Count() = 0 then
 		noPCMAudioOutput = CreateObject("roAudioOutput", "none")
 		pcm.push(noPCMAudioOutput)
@@ -6810,24 +6710,17 @@ Sub SetAllAudioOutputs(parameters As Object)
 		compressed.push(noCompressedAudioOutput)
 	endif
 
-	if multichannel.Count() = 0 then
-		noMultichannelAudioOutput = CreateObject("roAudioOutput", "none")
-		multichannel.push(noMultichannelAudioOutput)
-	endif
-
 	zone = m.GetZone(zoneId$)
 	if type(zone) = "roAssociativeArray" then
 
 		if type(zone.videoPlayer) = "roVideoPlayer" then
 			zone.videoPlayer.SetPcmAudioOutputs(pcm)
 			zone.videoPlayer.SetCompressedAudioOutputs(compressed)
-			zone.videoPlayer.SetMultichannelAudioOutputs(multichannel)
 		endif
 
 		if IsAudioPlayer(zone.audioPlayer) then
 			zone.audioPlayer.SetPcmAudioOutputs(pcm)
 			zone.audioPlayer.SetCompressedAudioOutputs(compressed)
-			zone.audioPlayer.SetMultichannelAudioOutputs(multichannel)
 		endif
 
 	endif
@@ -6838,9 +6731,7 @@ End Sub
 Sub UnmuteAudioConnector(connector$ As String)
 
 	audioOutput = CreateObject("roAudioOutput", connector$)
-	if type(audioOutput) = "roAudioOutput" then
-		audioOutput.SetMute(false)
-	endif
+	audioOutput.SetMute(false)
 
 End Sub
 
@@ -6848,26 +6739,9 @@ End Sub
 Sub UnmuteAllAudio()
 
 	if m.sysInfo.modelSupportsRoAudioOutput then
-		m.UnmuteAudioConnector("Analog:1")
-		m.UnmuteAudioConnector("Analog:2")
-		m.UnmuteAudioConnector("Analog:3")
+		m.UnmuteAudioConnector("Analog")
 		m.UnmuteAudioConnector("HDMI")
 		m.UnmuteAudioConnector("SPDIF")
-'		m.UnmuteAudioConnector("USB")
-	endif
-
-End Sub
-
-
-Sub MuteAudioOutput(muteOn as Boolean, parameters As Object, parameterName$ As String, objectName$ As String)
-
-	if parameters.DoesExist(parameterName$) then
-		parameter = parameters[parameterName$]
-		mute$ = parameter.GetCurrentParameterValue()
-		if lcase(mute$) = "true" then
-			audioOutput = CreateObject("roAudioOutput", objectName$)
-			audioOutput.SetMute(muteOn)
-		endif
 	endif
 
 End Sub
@@ -6875,12 +6749,26 @@ End Sub
 
 Sub MuteAudioOutputs(muteOn as Boolean, parameters As Object)
 
-	m.MuteAudioOutput(muteOn, parameters, "analog", "Analog:1")
-	m.MuteAudioOutput(muteOn, parameters, "analog2", "Analog:2")
-	m.MuteAudioOutput(muteOn, parameters, "analog3", "Analog:3")
-	m.MuteAudioOutput(muteOn, parameters, "hdmi", "HDMI")
-	m.MuteAudioOutput(muteOn, parameters, "spdif", "SPDIF")
-	m.MuteAudioOutput(muteOn, parameters, "usb", "USB")
+	parameter = parameters["analog"]
+	analogMute$ = parameter.GetCurrentParameterValue()
+	if lcase(analogMute$) = "true" then
+		analogAudioOutput = CreateObject("roAudioOutput", "Analog")
+		analogAudioOutput.SetMute(muteOn)
+	endif
+
+	parameter = parameters["hdmi"]
+	hdmiMute$ = parameter.GetCurrentParameterValue()
+	if lcase(hdmiMute$) = "true" then
+		hdmiAudioOutput = CreateObject("roAudioOutput", "HDMI")
+		hdmiAudioOutput.SetMute(muteOn)
+	endif
+
+	parameter = parameters["spdif"]
+	spdifMute$ = parameter.GetCurrentParameterValue()
+	if lcase(spdifMute$) = "true" then
+		spdifAudioOutput = CreateObject("roAudioOutput", "SPDIF")
+		spdifAudioOutput.SetMute(muteOn)
+	endif
 
 End Sub
 
@@ -6895,23 +6783,14 @@ Sub SetConnectorVolume(parameters As Object)
 	volume% = int(val(volume$))
 
 	if lcase(connector$) = "analog" then
-		audioOutput = CreateObject("roAudioOutput", "Analog:1")
+		audioOutput = CreateObject("roAudioOutput", "Analog")
 		m.analogVolume% = volume%
-	else if lcase(connector$) = "analog2" then
-		audioOutput = CreateObject("roAudioOutput", "Analog:2")
-		m.analog2Volume% = volume%
-	else if lcase(connector$) = "analog3" then
-		audioOutput = CreateObject("roAudioOutput", "Analog:3")
-		m.analog3Volume% = volume%
 	else if lcase(connector$) = "hdmi" then
 		audioOutput = CreateObject("roAudioOutput", "HDMI")
 		m.hdmiVolume% = volume%
 	else if lcase(connector$) = "spdif" then
 		audioOutput = CreateObject("roAudioOutput", "SPDIF")
 		m.spdifVolume% = volume%
-	else if lcase(connector$) = "usb" then
-		audioOutput = CreateObject("roAudioOutput", "USB")
-		m.usbVolume% = volume%
 	endif
 
 	if type(audioOutput) = "roAudioOutput" then
@@ -6931,11 +6810,7 @@ Sub ChangeConnectorVolume(multiplier% As Integer, parameters As Object)
 	volumeDelta% = int(val(volumeDelta$)) * multiplier%
 
 	if lcase(connector$) = "analog" then
-		m.analogVolume% = ExecuteChangeConnectorVolume("Analog:1", m.analogVolume% + volumeDelta%)
-	else if lcase(connector$) = "analog2" then
-		m.analog2Volume% = ExecuteChangeConnectorVolume("Analog:2", m.analog2Volume% + volumeDelta%)
-	else if lcase(connector$) = "analog3" then
-		m.analog3Volume% = ExecuteChangeConnectorVolume("Analog:3", m.analog3Volume% + volumeDelta%)
+		m.analogVolume% = ExecuteChangeConnectorVolume("Analog", m.analogVolume% + volumeDelta%)
 	else if lcase(connector$) = "hdmi" then
 		m.hdmiVolume% = ExecuteChangeConnectorVolume("HDMI", m.hdmiVolume% + volumeDelta%)
 	else if lcase(connector$) = "spdif" then
@@ -7605,7 +7480,7 @@ End Sub
 
 Sub ConfigureAudioResources()
 
-	if m.bsp.sysInfo.deviceFamily$ = "panther" or m.bsp.sysInfo.deviceFamily$ = "cheetah" or m.bsp.sysInfo.deviceFamily$ = "puma" then
+	if m.bsp.sysInfo.deviceFamily$ = "panther" or m.bsp.sysInfo.deviceFamily$ = "cheetah" then
 		if type(m.videoPlayer) = "roVideoPlayer" then
 			m.videoPlayer.ConfigureAudioResources()
 		else if IsAudioPlayer(m.audioPlayer) then
@@ -7710,10 +7585,9 @@ Sub newZoneCommon(bsp As Object, zoneXML As Object, zoneHSM As Object)
 
 	zoneHSM.LogPlayStart = LogPlayStart
 	zoneHSM.ClearImagePlane = ClearImagePlane
-	zoneHSM.ShowImageWidget = ShowImageWidget
-	zoneHSM.ShowCanvasWidget = ShowCanvasWidget
-	zoneHSM.ShowHtmlWidget = ShowHtmlWidget
-	zoneHSM.UpdateWidgetVisibility = UpdateWidgetVisibility
+	zoneHSM.ShowImagePlane = ShowImagePlane
+
+	zoneHSM.SendCommandToVideo = SendCommandToVideo
 
     zoneHSM.stTop = zoneHSM.newHState(bsp, "Top")
     zoneHSM.stTop.HStateEventHandler = STTopEventHandler
@@ -7756,40 +7630,7 @@ Function GetNextStateName(transition As Object) As Object
 
 	if type(transition.conditionalTargets) = "roArray" then
 		for each conditionalTarget in transition.conditionalTargets
-
-			matchFound = false
-
-			currentValue% = val(conditionalTarget.userVariable.GetCurrentValue())
-			userVariableValue% = val(conditionalTarget.userVariableValue$)
-
-			if conditionalTarget.operator$ = "EQ" then
-				if conditionalTarget.userVariable.GetCurrentValue() = conditionalTarget.userVariableValue$ then
-					matchFound = true
-				endif
-			else if conditionalTarget.operator$ = "LT" then
-				if currentValue% < userVariableValue% then
-					matchFound = true
-				endif
-			else if conditionalTarget.operator$ = "LTE" then
-				if currentValue% <= userVariableValue% then
-					matchFound = true
-				endif
-			else if conditionalTarget.operator$ = "GT" then
-				if currentValue% > userVariableValue% then
-					matchFound = true
-				endif
-			else if conditionalTarget.operator$ = "GTE" then
-				if currentValue% >= userVariableValue% then
-					matchFound = true
-				endif
-			else if conditionalTarget.operator$ = "B" then
-				userVariableValue2% = val(conditionalTarget.userVariableValue2$)
-				if currentValue% >= userVariableValue% and currentValue% <= userVariableValue2% then
-					matchFound = true
-				endif
-			endif
-
-			if matchFound then
+			if conditionalTarget.userVariable.GetCurrentValue() = conditionalTarget.userVariableValue$ then
 				if conditionalTarget.targetMediaStateIsPreviousState then
 					nextState$ = m.stateMachine.previousStateName$
 				else
@@ -7800,7 +7641,6 @@ Function GetNextStateName(transition As Object) As Object
 				nextState.actualTarget = conditionalTarget
 				return nextState
 			endif
-
 		next
 	endif
 
@@ -7959,16 +7799,6 @@ Function MediaItemEventHandler(event As Object, stateData As Object) As Object
 			m.bsp.logging.WriteEventLogEntry(m.stateMachine, m.id$, "gpioButton", gpioNum$, "1")
 			return m.ExecuteTransition(gpioEvents[gpioNum$], stateData, "")
         else
-
-			if type(m.auxDisconnectEvents) = "roAssociativeArray" then
-				if gpioNum$ = "31" then
-					if type(m.auxDisconnectEvents["BrightSignAuxIn"]) = "roAssociativeArray" then
-						m.bsp.logging.WriteEventLogEntry(m.stateMachine, m.id$, "auxDisconnect", gpioNum$, "1")
-						return m.ExecuteTransition(m.auxDisconnectEvents["BrightSignAuxIn"], stateData, "")
-					endif
-				endif
-			endif
-
 			' WHISKERS
 			if type(m.auxConnectEvents) = "roAssociativeArray" then
 				if gpioNum$ = "3" then
@@ -7995,15 +7825,6 @@ Function MediaItemEventHandler(event As Object, stateData As Object) As Object
 	else if type(event) = "roControlUp" and stri(event.GetSourceIdentity()) = stri(m.bsp.controlPort.GetIdentity()) then
         m.bsp.diagnostics.PrintDebug("Control Up" + str(event.GetInt()))
         gpioNum$ = StripLeadingSpaces(str(event.GetInt()))
-
-		if type(m.auxConnectEvents) = "roAssociativeArray" then
-			if gpioNum$ = "31" then
-				if type(m.auxConnectEvents["BrightSignAuxIn"]) = "roAssociativeArray" then
-					m.bsp.logging.WriteEventLogEntry(m.stateMachine, m.id$, "auxConnect", gpioNum$, "1")
-					return m.ExecuteTransition(m.auxConnectEvents["BrightSignAuxIn"], stateData, "")
-				endif
-			endif
-		endif
 
 		' WHISKERS
 		if type(m.auxDisconnectEvents) = "roAssociativeArray" then
@@ -8988,11 +8809,8 @@ Sub newAudioZoneCommon(zoneXML As Object, zoneHSM As Object)
 	zoneHSM.audioMappingSpan% = GetAudioMappingSpan(zoneHSM.audioOutput%, zoneXML.zoneSpecificParameters.audioMapping.GetText())
 
 	zoneHSM.analogOutput$ = zoneXML.zoneSpecificParameters.analogOutput.GetText()
-	zoneHSM.analog2Output$ = zoneXML.zoneSpecificParameters.analog2Output.GetText()
-	zoneHSM.analog3Output$ = zoneXML.zoneSpecificParameters.analog3Output.GetText()
 	zoneHSM.hdmiOutput$ = zoneXML.zoneSpecificParameters.hdmiOutput.GetText()
 	zoneHSM.spdifOutput$ = zoneXML.zoneSpecificParameters.spdifOutput.GetText()
-	zoneHSM.usbOutput$ = zoneXML.zoneSpecificParameters.usbOutput.GetText()
 	zoneHSM.audioMixMode$ = zoneXML.zoneSpecificParameters.audioMixMode.GetText()
 
 	if zoneHSM.analogOutput$ <> "" and zoneHSM.hdmiOutput$ <> "" and zoneHSM.spdifOutput$ <> "" and zoneHSM.audioMixMode$ <> "" then
@@ -9093,11 +8911,8 @@ Function newVideoZoneHSM(bsp As Object, zoneXML As Object) As Object
 	zoneHSM.audioMappingSpan% = GetAudioMappingSpan(zoneHSM.audioOutput%, zoneXML.zoneSpecificParameters.audioMapping.GetText())
 	
 	zoneHSM.analogOutput$ = zoneXML.zoneSpecificParameters.analogOutput.GetText()
-	zoneHSM.analog2Output$ = zoneXML.zoneSpecificParameters.analog2Output.GetText()
-	zoneHSM.analog3Output$ = zoneXML.zoneSpecificParameters.analog3Output.GetText()
 	zoneHSM.hdmiOutput$ = zoneXML.zoneSpecificParameters.hdmiOutput.GetText()
 	zoneHSM.spdifOutput$ = zoneXML.zoneSpecificParameters.spdifOutput.GetText()
-	zoneHSM.usbOutput$ = zoneXML.zoneSpecificParameters.usbOutput.GetText()
 	zoneHSM.audioMixMode$ = zoneXML.zoneSpecificParameters.audioMixMode.GetText()
 
 	if zoneHSM.analogOutput$ <> "" and zoneHSM.hdmiOutput$ <> "" and zoneHSM.spdifOutput$ <> "" and zoneHSM.audioMixMode$ <> "" then
@@ -9147,33 +8962,13 @@ Sub SetAudioOutputAndMode(player As Object)
 
 		pcm = CreateObject("roArray", 1, true)
 		compressed = CreateObject("roArray", 1, true)
-		multichannel = CreateObject("roArray", 1, true)
 
-		analogAudioOutput = CreateObject("roAudioOutput", "Analog:1")
-		analog2AudioOutput = CreateObject("roAudioOutput", "Analog:2")
-		analog3AudioOutput = CreateObject("roAudioOutput", "Analog:3")
+		analogAudioOutput = CreateObject("roAudioOutput", "Analog")
 		hdmiAudioOutput = CreateObject("roAudioOutput", "HDMI")
 		spdifAudioOutput = CreateObject("roAudioOutput", "SPDIF")
-		usbAudioOutput = CreateObject("roAudioOutput", "USB")
 
 		if lcase(m.analogOutput$) <> "none" then
 			pcm.push(analogAudioOutput)
-		endif
-
-		if lcase(m.analog2Output$) = "pcm" then
-			pcm.push(analog2AudioOutput)
-		endif
-
-		if lcase(m.analog3Output$) = "pcm" then
-			pcm.push(analog3AudioOutput)
-		endif
-
-		if lcase(m.analogOutput$)="multichannel" then
-			multichannel.push(analogAudioOutput)
-		else if lcase(m.analog2Output$)="multichannel" then
-			multichannel.push(analog2AudioOutput)
-		else if lcase(m.analog3Output$)="multichannel" then
-			multichannel.push(analog3AudioOutput)
 		endif
 
 		if lcase(m.hdmiOutput$) = "passthrough" then
@@ -9188,12 +8983,6 @@ Sub SetAudioOutputAndMode(player As Object)
 			pcm.push(spdifAudioOutput)
 		endif
 
-		if lcase(m.usbOutput$) = "pcm" then
-			pcm.push(usbAudioOutput)
-		else if lcase(m.usbOutput$) = "multichannel" then
-			multichannel.push(usbAudioOutput)
-		endif
-
 		if pcm.Count() = 0 then
 			noPCMAudioOutput = CreateObject("roAudioOutput", "none")
 			pcm.push(noPCMAudioOutput)
@@ -9204,14 +8993,8 @@ Sub SetAudioOutputAndMode(player As Object)
 			compressed.push(noCompressedAudioOutput)
 		endif
 
-		if multichannel.Count() = 0 then
-			noMultichannelAudioOutput = CreateObject("roAudioOutput", "none")
-			multichannel.push(noMultichannelAudioOutput)
-		endif
-
 		player.SetPcmAudioOutputs(pcm)
 		player.SetCompressedAudioOutputs(compressed)
-		player.SetMultichannelAudioOutputs(multichannel)
 
 		if lcase(m.audioMixMode$) = "passthrough" then
 			player.SetAudioMode(0)
@@ -9684,23 +9467,14 @@ Sub VideoOrImagesZoneConstructor()
     zoneHSM = m
     
     ' create players
-	if zoneHSM.numImageItems% > 0 then
-
-		imagePlayer = CreateObject("roImageWidget", zoneHSM.rectangle)
-	    
-		zoneHSM.imagePlayer = imagePlayer
-	    
-		' initialize image player parameters
-		imagePlayer.SetDefaultMode(zoneHSM.imageMode%)
-
-		m.LoadImageBuffers()
-
-	else
-	
-		zoneHSM.imagePlayer = invalid
-		
-	endif
     
+    imagePlayer = CreateObject("roImageWidget", zoneHSM.rectangle)
+
+'    audioPlayer = CreateObject("roAudioPlayer")
+'    audioPlayer.SetPort(zoneHSM.msgPort)
+    
+    zoneHSM.imagePlayer = imagePlayer
+'    zoneHSM.audioPlayer = audioPlayer
     zoneHSM.audioVolume% = zoneHSM.initialAudioVolume%
     
 	audioInput = CreateObject("roAudioInput", m.bsp.sign.audioInSampleRate%)
@@ -9708,10 +9482,22 @@ Sub VideoOrImagesZoneConstructor()
 		zoneHSM.audioInput = audioInput
 	endif
 	
+'    audioPlayer.SetAudioOutput(zoneHSM.audioOutput%)
+'    audioPlayer.SetAudioMode(zoneHSM.audioMode%)
+'    audioPlayer.MapStereoOutput(zoneHSM.audioMapping%)
+'	 audioPlayer.SetStereoMappingSpan(zoneHSM.audioMappingSpan%)
+'    audioPlayer.SetVolume(zoneHSM.audioVolume%)
+'    audioPlayer.SetLoopMode(false)
+              
 	zoneHSM.audioPlayerAudioSettings = CreateObject("roAssociativeArray")
 	zoneHSM.audioPlayerAudioSettings.audioOutput% = zoneHSM.audioOutput%
 	zoneHSM.audioPlayerAudioSettings.stereoMapping% = zoneHSM.audioMapping%
 	m.bsp.SetAudioVolumeLimits(zoneHSM.audioPlayerAudioSettings) 
+	
+    ' initialize image player parameters
+    imagePlayer.SetDefaultMode(zoneHSM.imageMode%)
+
+	m.LoadImageBuffers()
 	
 	m.CreateObjects()
 
@@ -10345,7 +10131,7 @@ Sub DisplayImage(stateType$ As String)
 
     endif
 
-	m.stateMachine.ShowImageWidget()
+	m.stateMachine.ShowImagePlane()
 
 	m.stateMachine.preloadState = 0
 	m.stateMachine.preloadedStateName$ = ""
@@ -10482,7 +10268,7 @@ Function STAudioInPlayingEventHandler(event As Object, stateData As Object) As O
 						m.bsp.diagnostics.PrintDebug("Error in DisplayPreload in STAudioInPlayingEventHandler: " + file$ + ", " + filePath$)
 					endif
 
-					m.stateMachine.ShowImageWidget()
+					m.stateMachine.ShowImagePlane()
 
 				endif					
 
@@ -10558,6 +10344,22 @@ Function STEventHandlerEventHandler(event As Object, stateData As Object) As Obj
 
 				m.bsp.ExecuteMediaStateCommands(m.stateMachine, m)
     
+				if m.stopPlayback then
+
+					if type(m.stateMachine.videoPlayer) = "roVideoPlayer" then
+						m.stateMachine.videoPlayer.StopClear()
+					endif
+
+					m.stateMachine.ClearImagePlane()
+
+					if IsAudioPlayer(m.stateMachine.audioPlayer) then
+						m.stateMachine.audioPlayer.Stop()
+					endif
+
+					m.stateMachine.StopSignChannelInZone()
+	
+				endif
+
 				m.LaunchTimer()    
 
 		        m.bsp.SetTouchRegions(m)
@@ -10746,11 +10548,14 @@ Function STHTML5PlayingEventHandler(event As Object, stateData As Object) As Obj
 
 				m.stateMachine.StopSignChannelInZone()
 
-				m.stateMachine.loadingHtmlWidget = CreateObject("roHtmlWidget", m.stateMachine.rectangle)
-				m.stateMachine.loadingHtmlWidget.SetPort(m.bsp.msgPort)
+'				m.touchScreen = CreateObject("roTouchScreen")
+'				m.touchScreen.EnableCursor(true)
 
-				m.stateMachine.loadingHtmlWidget.EnableSecurity(not m.enableExternalData)
-				m.stateMachine.loadingHtmlWidget.EnableMouseEvents(m.enableMouseEvents)
+				m.html = CreateObject("roHtmlWidget", m.stateMachine.rectangle)
+				m.html.SetPort(m.bsp.msgPort)
+
+				m.html.EnableSecurity(not m.enableExternalData)
+				m.html.EnableMouseEvents(m.enableMouseEvents)
 
 				if m.contentIsLocal then
 
@@ -10768,14 +10573,19 @@ Function STHTML5PlayingEventHandler(event As Object, stateData As Object) As Obj
 					prefix$ = m.prefix$
 	'				prefix$ = presentationName$ + "-" + stateName$ + "-"
 
-					m.stateMachine.loadingHtmlWidget.MapFilesFromAssetPool(assetPool, assetCollection, prefix$, "/" + prefix$ + "/")
-					m.stateMachine.loadingHtmlWidget.SetURL("file:///" + prefix$ + "/" + m.filePath$)
+					m.html.MapFilesFromAssetPool(assetPool, assetCollection, prefix$, "/" + prefix$ + "/")
+					m.html.SetURL("file:///" + prefix$ + "/" + m.filePath$)
 				
 				else
 
-					url$ = m.url.GetCurrentParameterValue()
-					m.stateMachine.loadingHtmlWidget.SetUrl(url$)
+					m.html.SetURL(m.url$)
 
+				endif
+
+				m.html.Show()
+
+				if type(m.stateMachine.videoPlayer) = "roVideoPlayer" then
+					m.stateMachine.videoPlayer.StopClear()
 				endif
 
 				m.LaunchTimer()    
@@ -10793,6 +10603,8 @@ Function STHTML5PlayingEventHandler(event As Object, stateData As Object) As Obj
             else if event["EventType"] = "EXIT_SIGNAL" then
 
                 m.bsp.diagnostics.PrintDebug(m.id$ + ": exit signal")
+
+				m.html = invalid
             
             else
             
@@ -10819,16 +10631,6 @@ Function STHTML5PlayingEventHandler(event As Object, stateData As Object) As Obj
 					m.htmlReloadTimer.SetDateTime(newTimeout)
 					m.htmlReloadTimer.Start()
 				endif
-			else if eventData.reason = "load-finished" then
-				if type(m.stateMachine.videoPlayer) = "roVideoPlayer" then
-					m.stateMachine.videoPlayer.StopClear()
-				endif
-
-				m.stateMachine.displayedHtmlWidget = m.stateMachine.loadingHtmlWidget
-				m.stateMachine.loadingHtmlWidget = invalid
-
-				m.stateMachine.ShowHtmlWidget()
-
 			endif
 		endif
 
@@ -10836,7 +10638,7 @@ Function STHTML5PlayingEventHandler(event As Object, stateData As Object) As Obj
 
 		if type(m.htmlReloadTimer) = "roTimer" and event.GetSourceIdentity() = m.htmlReloadTimer.GetIdentity() then
 			m.bsp.diagnostics.PrintDebug("Reload Html5 widget")
-			m.stateMachine.loadingHtmlWidget.SetURL(m.url$)
+			m.html.SetURL(m.url$)
 			return "HANDLED"
 		else
 	        return m.MediaItemEventHandler(event, stateData)
@@ -11448,21 +11250,9 @@ Function ExecuteInteractiveMenuEnter(stateData As Object) As String
 
 	' execute commands
 	if type(m.currentInteractiveMenuItem.enterCmds) = "roArray" then
-
 		for each cmd in m.currentInteractiveMenuItem.enterCmds
-
-			if cmd.name$ = "switchPresentation" then
-				presentationName$ = cmd.parameters["presentationName"].GetCurrentParameterValue()
-				switchToNewPresentation = m.bsp.ExecuteSwitchPresentationCommand(presentationName$)
-				if switchToNewPresentation then
-					return "HANDLED"
-				endif
-			endif
-
 			m.bsp.ExecuteCmd(m.stateMachine, cmd.name$, cmd.parameters)
-
 		next
-
 	endif
 	
 	launchedPlayback = false
@@ -11631,7 +11421,7 @@ Sub DisplayInteractiveMenuImage(file$ As String, userVariable As Object, timeout
 		ok = m.stateMachine.imagePlayer.DisplayPreload()
 	endif
 
-	m.stateMachine.ShowImageWidget()
+	m.stateMachine.ShowImagePlane()
 	
 	m.playingVideoClip = false
 	m.playingAudioClip = false
@@ -11684,7 +11474,7 @@ Sub DrawInteractiveMenu()
 				endif  
 			endif 
 
-			m.stateMachine.ShowImageWidget()
+			m.stateMachine.ShowImagePlane()
 
 		else
 			m.stateMachine.ClearImagePlane()
@@ -11753,7 +11543,7 @@ Sub DisplayNavigationOverlay(fileName$ As String, interactiveMenuItem As Object,
 			endif
 		endif
 		
-		m.stateMachine.ShowImageWidget()
+		m.stateMachine.ShowImagePlane()
 
 	endif
 	
@@ -11807,7 +11597,7 @@ End Sub
 
 Function TemplateUsesAnyUserVariable() As Boolean
 
-	for each templateItem in m.templateItem
+	for each templateItem in m.templateItems
 		if templateItem.type$ = "userVariableTemplateItem" then
 			return true
 		endif
@@ -11818,7 +11608,7 @@ End Function
 
 Function TemplateUsesUserVariable(userVariable As Object) As Boolean
 
-	for each templateItem in m.templateItem
+	for each templateItem in m.templateItems
 		if templateItem.type$ = "userVariableTemplateItem" then
 			if type(templateItem.userVariable) = "roAssociativeArray" then
 				if templateItem.userVariable.name$ = userVariable.name$ then
@@ -11925,11 +11715,7 @@ Sub BuildTemplateItems()
 			liveDataFeed = templateItem.liveDataFeed
 			if m.liveDataFeeds.DoesExist(liveDataFeed.name$) then
 				if templateItem.type$ = "indexedLiveTextDataEntryTemplateItem" then
-					indexStr$ = templateItem.index.GetCurrentParameterValue()
-					index% = int(val(indexStr$))
-					if index% > 0 then
-						index% = index% - 1
-					endif
+					index% = templateItem.index%
 					if type(liveDataFeed.articles) = "roArray" then
 						if index% <= (liveDataFeed.articles.count() - 1) then
 							textValue$ = liveDataFeed.articles[index%]
@@ -11939,7 +11725,7 @@ Sub BuildTemplateItems()
 						endif
 					endif
 				else
-					title$ = templateItem.title.GetCurrentParameterValue()
+					title$ = templateItem.title$
 					if type(liveDataFeed.articlesByTitle) = "roAssociativeArray" then
 						if liveDataFeed.articlesByTitle.DoesExist(title$) then
 							textValue$ = liveDataFeed.articlesByTitle.Lookup(title$)
@@ -12219,7 +12005,11 @@ Function STTemplatePlayingEventHandler(event As Object, stateData As Object) As 
 
 				m.stateMachine.canvasWidget.EnableAutoRedraw(1)
 
-				m.stateMachine.ShowCanvasWidget()
+				if type(m.stateMachine.imagePlayer) = "roImageWidget" then
+					m.stateMachine.imagePlayer.Hide()
+				endif
+
+				m.stateMachine.canvasWidget.Show()
 
 				m.LaunchTimer()    
 
@@ -12401,17 +12191,17 @@ Function STTemplatePlayingEventHandler(event As Object, stateData As Object) As 
 								simpleRSS.rssItemTimer.SetDateTime(newTimeout)
 								simpleRSS.rssItemTimer.Start()
 							endif
-
-							return "HANDLED"
+						
+						return "HANDLED"
 
 						endif			
 					endif
 				endif
 			next
+		else
+		    return m.MediaItemEventHandler(event, stateData)
 		endif
 
-	    return m.MediaItemEventHandler(event, stateData)
-	
 	else
 
         return m.MediaItemEventHandler(event, stateData)
@@ -13425,6 +13215,9 @@ Sub PopulateRSSDataFeedWidget()
 			next
 		else
 			for each article in rssDataFeedItem.liveDataFeed.articles
+				if rssDataFeedItem.isTwitterFeed and m.bsp.stripTwitterUserNames and rssDataFeedItem.twitterUserName$ <> "" then
+					article = Mid(article, len(rssDataFeedItem.twitterUserName$))
+				endif
 				m.stateMachine.widget.PushString(article)
 			next
 		endif
@@ -14232,28 +14025,17 @@ Function STPlayingEventHandler(event As Object, stateData As Object) As Object
 				        m.bsp.logging.WriteDiagnosticLogEntry(m.bsp.diagnosticCodes.EVENT_LIVE_TEXT_PLUGIN_FAILURE, stri(retVal) + chr(9) + liveDataFeed.parser$)
 					endif
 				else
-					if type(liveDataFeed.isJSON) = "roBoolean" and liveDataFeed.isJSON then
-						jsonString=ReadAsciiFile(liveDataFeed.rssFileName$)
-						json = ParseJSON(jsonString)
-						for each jsonItem in json
-							text$ = jsonItem.text
-							liveDataFeed.articles.Push(text$)
-							liveDataFeed.articleTitles.Push(text$)
-							liveDataFeed.articlesByTitle.AddReplace(text$, text$)
-						next
-					else
-						parser = CreateObject("roRssParser")
-						parser.ParseFile(liveDataFeed.rssFileName$)
+					parser = CreateObject("roRssParser")
+					parser.ParseFile(liveDataFeed.rssFileName$)
+					article = parser.GetNextArticle()
+					while type(article) = "roRssArticle"
+						title = article.GetTitle()
+						description = article.GetDescription()
+						liveDataFeed.articles.Push(description)
+						liveDataFeed.articleTitles.Push(title)
+						liveDataFeed.articlesByTitle.AddReplace(title, description)
 						article = parser.GetNextArticle()
-						while type(article) = "roRssArticle"
-							title = article.GetTitle()
-							description = article.GetDescription()
-							liveDataFeed.articles.Push(description)
-							liveDataFeed.articleTitles.Push(title)
-							liveDataFeed.articlesByTitle.AddReplace(title, description)
-							article = parser.GetNextArticle()
-						endwhile
-					endif
+					endwhile
 				endif
 
 				DeleteFile(liveDataFeed.rssFileName$)
@@ -15029,15 +14811,8 @@ Function InitializeNetworkingStateMachine() As Object
     m.password$ = m.currentSync.LookupMetadata("server", "password")
     if m.user$ <> "" or m.password$ <> "" then
         m.setUserAndPassword = true
-		enableUnsafeAuthentication$ = m.currentSync.LookupMetadata("server", "enableUnsafeAuthentication")
-		if lcase(enableUnsafeAuthentication$) = "true" then
-			m.enableUnsafeAuthentication = true
-		else
-			m.enableUnsafeAuthentication = false
-		endif
     else
         m.setUserAndPassword = false
-		m.enableUnsafeAuthentication = false
     endif
 
     useWireless$ = m.currentSync.LookupMetadata("client", "useWireless")
@@ -16734,7 +16509,6 @@ Sub StartSync(syncType$ As String)
 
 	m.xfer.SetUrl(nextURL)
     if m.stateMachine.setUserAndPassword then m.xfer.SetUserAndPassword(m.stateMachine.user$, m.stateMachine.password$)
-	m.xfer.EnableUnsafeAuthentication(m.stateMachine.enableUnsafeAuthentication)
     m.xfer.SetMinimumTransferRate(10,240)
 	m.xfer.SetHeaders(m.stateMachine.currentSync.GetMetadata("server"))
 
@@ -17515,7 +17289,6 @@ Function StartSyncListDownload() As Object
 	m.stateMachine.syncPool.ReserveMegabytes(50)
     m.stateMachine.syncPool.SetPort(m.stateMachine.msgPort)
     if m.stateMachine.setUserAndPassword then m.stateMachine.syncPool.SetUserAndPassword(m.stateMachine.user$, m.stateMachine.password$)
-	m.stateMachine.syncPool.EnableUnsafeAuthentication(m.stateMachine.enableUnsafeAuthentication)
     m.stateMachine.syncPool.SetMinimumTransferRate(1000,900)
     m.stateMachine.syncPool.SetHeaders(m.stateMachine.newSync.GetMetadata("server"))
     m.stateMachine.syncPool.AddHeader("DeviceID", m.stateMachine.deviceUniqueID$)
@@ -17992,35 +17765,26 @@ End Sub
 
 Function ExecuteSwitchPresentationCommand(presentationName$ As String) As Boolean
 
-	' retrieve target presentation
-	presentation = m.presentations.Lookup(presentationName$)
-
-	if type(presentation) = "roAssociativeArray" then
-
-		' check for existence of target presentation - if it's not present, don't try to switch to it
-		autoplayFileName$ = "autoplay-" + presentation.path$ + ".xml"
-		xmlFileName$ = m.syncPoolFiles.GetPoolFilePath(autoplayFileName$)
-		if xmlFileName$ = "" then
-			m.diagnostics.PrintDebug("switchPresentation: target presentation not found - " + presentationName$)
-			return false
-		endif
-
-		' send internal message to prepare for restart
-		prepareForRestartEvent = CreateObject("roAssociativeArray")
-		prepareForRestartEvent["EventType"] = "PREPARE_FOR_RESTART"
-		m.msgPort.PostMessage(prepareForRestartEvent)
-
-		' send switch presentation internal message
-		switchPresentationEvent = CreateObject("roAssociativeArray")
-		switchPresentationEvent["EventType"] = "SWITCH_PRESENTATION"
-		switchPresentationEvent["Presentation"] = presentation.path$
-		m.msgPort.PostMessage(switchPresentationEvent)
-	
-		return true
-
+	' check for existence of target presentation - if it's not present, don't try to switch to it
+	autoplayFileName$ = "autoplay-" + presentationName$ + ".xml"
+	xmlFileName$ = m.syncPoolFiles.GetPoolFilePath(autoplayFileName$)
+	if xmlFileName$ = "" then
+		m.diagnostics.PrintDebug("switchPresentation: target presentation not found - " + presentationName$)
+		return false
 	endif
 
-	return false
+	' send internal message to prepare for restart
+	prepareForRestartEvent = CreateObject("roAssociativeArray")
+	prepareForRestartEvent["EventType"] = "PREPARE_FOR_RESTART"
+	m.msgPort.PostMessage(prepareForRestartEvent)
+
+	' send switch presentation internal message
+	switchPresentationEvent = CreateObject("roAssociativeArray")
+	switchPresentationEvent["EventType"] = "SWITCH_PRESENTATION"
+	switchPresentationEvent["Presentation"] = presentationName$
+	m.msgPort.PostMessage(switchPresentationEvent)
+
+	return true
 
 End Function
 
@@ -18234,19 +17998,6 @@ Function ConvertToRemoteCommand(remoteCommand% As Integer) As String
 End Function
 
 
-Function GetIntegerParameterValue(parameters As Object, parameterName$ as String, defaultValue% As Integer) As Integer
-
-	parameter = parameters[parameterName$]
-	parameter$ = parameter.GetCurrentParameterValue()
-	parameter% = defaultValue%
-	if parameter$ <> "" then
-		parameter% = int(val(parameter$))
-	endif
-
-	return parameter% 
-End Function
-
-
 ' m is bsp
 Sub ExecuteCmd(zoneHSM As Object, command$ As String, parameters As Object)
 
@@ -18276,10 +18027,12 @@ Sub ExecuteCmd(zoneHSM As Object, command$ As String, parameters As Object)
 
     else if command$ = "mapDigitalOutputVideo" then
     
-		zone = m.GetVideoZone(zoneHSM)
-		if type(zone) = "roAssociativeArray" then
-			m.MapDigitalOutput(zone.videoPlayer, parameters)
-        endif
+		if zoneHSM.SendCommandToVideo() then
+			zone = m.GetVideoZone(zoneHSM)
+			if type(zone) = "roAssociativeArray" then
+				m.MapDigitalOutput(zone.videoPlayer, parameters)
+			endif
+		endif
 
     else if command$ = "mapDigitalOutputAudio" then
     
@@ -18295,18 +18048,22 @@ Sub ExecuteCmd(zoneHSM As Object, command$ As String, parameters As Object)
 
 	else if command$ = "setAudioOutputVideo" then
     
-        m.SetAudioOutput(zoneHSM, true, parameters)
-        
+		if zoneHSM.SendCommandToVideo() then
+			m.SetAudioOutput(zoneHSM, true, parameters)
+		endif
+		    
     else if command$ = "setAudioOutputAudio" then
 
         m.SetAudioOutput(zoneHSM, false, parameters)
 
     else if command$ = "setAudioModeVideo" then
 
-		zone = m.GetVideoZone(zoneHSM)
-		if type(zone) = "roAssociativeArray" then
-			m.SetAudioMode(zone.videoPlayer, parameters)
-        endif
+		if zoneHSM.SendCommandToVideo() then
+			zone = m.GetVideoZone(zoneHSM)
+			if type(zone) = "roAssociativeArray" then
+				m.SetAudioMode(zone.videoPlayer, parameters)
+			endif
+		endif
 
     else if command$ = "setAudioModeAudio" then
 
@@ -18314,7 +18071,9 @@ Sub ExecuteCmd(zoneHSM As Object, command$ As String, parameters As Object)
 
     else if command$ = "mapStereoOutputVideo" then
 
-        m.MapStereoOutput(zoneHSM, true, parameters)
+		if zoneHSM.SendCommandToVideo() then
+			m.MapStereoOutput(zoneHSM, true, parameters)
+		endif
 
     else if command$ = "mapStereoOutputAudio" then
 
@@ -18354,9 +18113,11 @@ Sub ExecuteCmd(zoneHSM As Object, command$ As String, parameters As Object)
 
 	else if command$ = "setSpdifMuteVideo" then
 
-		zone = m.GetVideoZone(zoneHSM)
-		if type(zone) = "roAssociativeArray" then
-			m.SetSpdifMute(zone.videoPlayer, parameters)
+		if zoneHSM.SendCommandToVideo() then
+			zone = m.GetVideoZone(zoneHSM)
+			if type(zone) = "roAssociativeArray" then
+				m.SetSpdifMute(zone.videoPlayer, parameters)
+			endif
 		endif
 
     else if command$ = "setSpdifMuteAudio" then
@@ -18365,9 +18126,11 @@ Sub ExecuteCmd(zoneHSM As Object, command$ As String, parameters As Object)
 
     else if command$ = "setAnalogMuteVideo" then
 
-		zone = m.GetVideoZone(zoneHSM)
-		if type(zone) = "roAssociativeArray" then
-	        m.SetAnalogMute(zone.videoChannelVolumes, zone.videoPlayer, parameters)
+		if zoneHSM.SendCommandToVideo() then
+			zone = m.GetVideoZone(zoneHSM)
+			if type(zone) = "roAssociativeArray" then
+				m.SetAnalogMute(zone.videoChannelVolumes, zone.videoPlayer, parameters)
+			endif
 		endif
 
     else if command$ = "setAnalogMuteAudio" then
@@ -18380,62 +18143,86 @@ Sub ExecuteCmd(zoneHSM As Object, command$ As String, parameters As Object)
 		
 	else if command$ = "setVideoVolumeByConnector" then
 	
-		outputParameter = parameters["output"]
-		volumeParameter = parameters["volume"]
+		if zoneHSM.SendCommandToVideo() then
 
-		output$ = outputParameter.GetCurrentParameterValue()
-		volume$ = volumeParameter.GetCurrentParameterValue()
+			outputParameter = parameters["output"]
+			volumeParameter = parameters["volume"]
 
-        m.diagnostics.PrintDebug("Set video volume on output " + output$ + " to " + volume$)
-		m.SetVideoVolumeByConnector(zoneHSM, output$, volume$)
+			output$ = outputParameter.GetCurrentParameterValue()
+			volume$ = volumeParameter.GetCurrentParameterValue()
+
+			m.diagnostics.PrintDebug("Set video volume on output " + output$ + " to " + volume$)
+			m.SetVideoVolumeByConnector(zoneHSM, output$, volume$)
+
+		endif
 
     else if command$ = "incrementVideoVolumeByConnector" then
 
-		outputParameter = parameters["output"]
-		volumeDeltaParameter = parameters["volumeDelta"]
+		if zoneHSM.SendCommandToVideo() then
 
-		output$ = outputParameter.GetCurrentParameterValue()
-		volumeDelta$ = volumeDeltaParameter.GetCurrentParameterValue()
-		
-		m.diagnostics.PrintDebug("Increment video volume on output " + output$ + " by " + volumeDelta$)
+			outputParameter = parameters["output"]
+			volumeDeltaParameter = parameters["volumeDelta"]
 
-		m.IncrementVideoVolumeByConnector(zoneHSM, output$, volumeDelta$)
+			output$ = outputParameter.GetCurrentParameterValue()
+			volumeDelta$ = volumeDeltaParameter.GetCurrentParameterValue()
 		
+			m.diagnostics.PrintDebug("Increment video volume on output " + output$ + " by " + volumeDelta$)
+
+			m.IncrementVideoVolumeByConnector(zoneHSM, output$, volumeDelta$)
+		
+		endif
+
     else if command$ = "decrementVideoVolumeByConnector" then
 
-		outputParameter = parameters["output"]
-		volumeDeltaParameter = parameters["volumeDelta"]
+		if zoneHSM.SendCommandToVideo() then
 
-		output$ = outputParameter.GetCurrentParameterValue()
-		volumeDelta$ = volumeDeltaParameter.GetCurrentParameterValue()
+			outputParameter = parameters["output"]
+			volumeDeltaParameter = parameters["volumeDelta"]
+
+			output$ = outputParameter.GetCurrentParameterValue()
+			volumeDelta$ = volumeDeltaParameter.GetCurrentParameterValue()
 		
-		m.diagnostics.PrintDebug("Decrement video volume on output " + output$ + " by " + volumeDelta$)
+			m.diagnostics.PrintDebug("Decrement video volume on output " + output$ + " by " + volumeDelta$)
 
-		m.DecrementVideoVolumeByConnector(zoneHSM, output$, volumeDelta$)
+			m.DecrementVideoVolumeByConnector(zoneHSM, output$, volumeDelta$)
+
+		endif
 
     else if command$ = "setVideoVolume" then
     
-		volumeParameter = parameters["volume"]
-		volume$ = volumeParameter.GetCurrentParameterValue()
+		if zoneHSM.SendCommandToVideo() then
 
-        m.diagnostics.PrintDebug("Set video volume to " + volume$)
-        m.SetVideoVolume(zoneHSM, volume$)
+			volumeParameter = parameters["volume"]
+			volume$ = volumeParameter.GetCurrentParameterValue()
+
+			m.diagnostics.PrintDebug("Set video volume to " + volume$)
+			m.SetVideoVolume(zoneHSM, volume$)
+
+		endif
 
     else if command$ = "incrementVideoVolume" then
 
-		volumeDeltaParameter = parameters["volumeDelta"]
-		volumeDelta$ = volumeDeltaParameter.GetCurrentParameterValue()
+		if zoneHSM.SendCommandToVideo() then
+
+			volumeDeltaParameter = parameters["volumeDelta"]
+			volumeDelta$ = volumeDeltaParameter.GetCurrentParameterValue()
 		
-		m.diagnostics.PrintDebug("Increment video volume by " + volumeDelta$)
-		m.IncrementVideoVolume(zoneHSM, volumeDelta$)
+			m.diagnostics.PrintDebug("Increment video volume by " + volumeDelta$)
+			m.IncrementVideoVolume(zoneHSM, volumeDelta$)
+
+		endif
 
     else if command$ = "decrementVideoVolume" then
     
-		volumeDeltaParameter = parameters["volumeDelta"]
-		volumeDelta$ = volumeDeltaParameter.GetCurrentParameterValue()
+		if zoneHSM.SendCommandToVideo() then
+
+			volumeDeltaParameter = parameters["volumeDelta"]
+			volumeDelta$ = volumeDeltaParameter.GetCurrentParameterValue()
 		
-		m.diagnostics.PrintDebug("Decrement video volume by " + volumeDelta$)
-		m.DecrementVideoVolume(zoneHSM, volumeDelta$)
+			m.diagnostics.PrintDebug("Decrement video volume by " + volumeDelta$)
+			m.DecrementVideoVolume(zoneHSM, volumeDelta$)
+
+		endif
 
 	else if command$ = "setAudioVolumeByConnector" then
 	
@@ -18496,37 +18283,49 @@ Sub ExecuteCmd(zoneHSM As Object, command$ As String, parameters As Object)
 		
     else if command$ = "setVideoChannelVolumes" then
     	
-		channelMaskParameter = parameters["channel"]
-		channelMask$ = channelMaskParameter.GetCurrentParameterValue()
+		if zoneHSM.SendCommandToVideo() then
 
-		volumeParameter = parameters["volume"]
-		volume$ = volumeParameter.GetCurrentParameterValue()
+			channelMaskParameter = parameters["channel"]
+			channelMask$ = channelMaskParameter.GetCurrentParameterValue()
 
-        m.diagnostics.PrintDebug("Set video channel volume: channel = " + channelMask$ + ", volume = " + volume$)
-        m.SetVideoChannnelVolume(zoneHSM, channelMask$, volume$)
+			volumeParameter = parameters["volume"]
+			volume$ = volumeParameter.GetCurrentParameterValue()
+
+			m.diagnostics.PrintDebug("Set video channel volume: channel = " + channelMask$ + ", volume = " + volume$)
+			m.SetVideoChannnelVolume(zoneHSM, channelMask$, volume$)
         
+		endif
+
     else if command$ = "incrementVideoChannelVolumes" then
     
-		channelMaskParameter = parameters["channel"]
-		channelMask$ = channelMaskParameter.GetCurrentParameterValue()
+		if zoneHSM.SendCommandToVideo() then
 
-		volumeDeltaParameter = parameters["volumeDelta"]
-		volumeDelta$ = volumeDeltaParameter.GetCurrentParameterValue()
+			channelMaskParameter = parameters["channel"]
+			channelMask$ = channelMaskParameter.GetCurrentParameterValue()
 
-        m.diagnostics.PrintDebug("Increment video channel volumes: channel = " + channelMask$ + ", volume delta = " + volumeDelta$)
-        m.IncrementVideoChannnelVolumes(zoneHSM, channelMask$, volumeDelta$)
+			volumeDeltaParameter = parameters["volumeDelta"]
+			volumeDelta$ = volumeDeltaParameter.GetCurrentParameterValue()
+
+			m.diagnostics.PrintDebug("Increment video channel volumes: channel = " + channelMask$ + ", volume delta = " + volumeDelta$)
+			m.IncrementVideoChannnelVolumes(zoneHSM, channelMask$, volumeDelta$)
         
+		endif
+
     else if command$ = "decrementVideoChannelVolumes" then
             
-		channelMaskParameter = parameters["channel"]
-		channelMask$ = channelMaskParameter.GetCurrentParameterValue()
+		if zoneHSM.SendCommandToVideo() then
 
-		volumeDeltaParameter = parameters["volumeDelta"]
-		volumeDelta$ = volumeDeltaParameter.GetCurrentParameterValue()
+			channelMaskParameter = parameters["channel"]
+			channelMask$ = channelMaskParameter.GetCurrentParameterValue()
 
-        m.diagnostics.PrintDebug("Decrement video channel volumes: channel = " + channelMask$ + ", volume delta = " + volumeDelta$)
-        m.DecrementVideoChannnelVolumes(zoneHSM, channelMask$, volumeDelta$)
-        
+			volumeDeltaParameter = parameters["volumeDelta"]
+			volumeDelta$ = volumeDeltaParameter.GetCurrentParameterValue()
+
+			m.diagnostics.PrintDebug("Decrement video channel volumes: channel = " + channelMask$ + ", volume delta = " + volumeDelta$)
+			m.DecrementVideoChannnelVolumes(zoneHSM, channelMask$, volumeDelta$)
+      
+	  endif
+	    
     else if command$ = "setAudioChannelVolumes" then
     
 		channelMaskParameter = parameters["channel"]
@@ -18672,195 +18471,7 @@ Sub ExecuteCmd(zoneHSM As Object, command$ As String, parameters As Object)
             m.remote.Send(protocol$, irRemoteOut%)
         endif
 
-    else if command$ = "sendBLC400Output" then
-
-		controllerIndexParameter = parameters["controllerIndex"]
-		controllerIndex$ = controllerIndexParameter.GetCurrentParameterValue()
-        controllerIndex% = int(val(controllerIndex$))
-
-		if type(m.blcs[controllerIndex%]) = "roControlPort" then
-
-			CHANNEL_CMD_INTENSITY% = &h1000
-			CHANNEL_CMD_BLINK%     = &h1100
-			CHANNEL_CMD_BREATHE%   = &h1200
-			CHANNEL_CMD_STROBE%    = &h1300
-			CHANNEL_CMD_MARQUEE%   = &h1400
-
-			' blink mode enumeration
-			BLINK_SPEED_SLOW%   = &h20
-			BLINK_SPEED_MEDIUM% = &h21
-			BLINK_SPEED_FAST%   = &h22
-
-			' marquee sub commands
-			MARQUEE_EXECUTE%    = &h30
-			MARQUEE_ON_TIME%    = &h31
-			MARQUEE_OFF_TIME%   = &h32
-			MARQUEE_FADE_OUT%   = &h33
-			MARQUEE_PLAYBACK%   = &h34
-			MARQUEE_TRANSITION% = &h35
-			MARQUEE_INTENSITY%  = &h36
-
-			' marquee playback mode enumeration
-			MARQUEE_PLAYBACK_LOOP%   = &h40
-			MARQUEE_PLAYBACK_BOUNCE% = &h41
-			MARQUEE_PLAYBACK_ONCE%   = &h42
-			MARQUEE_PLAYBACK_RANDOM% = &h43
-
-			' marquee transition mode enumeration
-			MARQUEE_TRANSITION_OFF%     = &h50
-			MARQUEE_TRANSITION_FULL%    = &h51
-			MARQUEE_TRANSITION_OVERLAP% = &h52
-
-			controlCmd = CreateObject("roArray", 4, false)
-
-			effectParameter = parameters["effect"]
-			effect$ = effectParameter.GetCurrentParameterValue()
-
-			channelsParameter = parameters["channels"]
-			channels$ = channelsParameter.GetCurrentParameterValue()
-			channels% = int(val(channels$))
-
-			time% = GetIntegerParameterValue(parameters, "time", 0)
-
-			intensity% = GetIntegerParameterValue(parameters, "intensity", 100)
-
-			blinkRateParameter = parameters["blinkRate"]
-			blinkRate$ = blinkRateParameter.GetCurrentParameterValue()
-
-			minimumIntensity% = GetIntegerParameterValue(parameters, "minimumIntensity", 0)
-			maximumIntensity% = GetIntegerParameterValue(parameters, "maximumIntensity", 100)
-
-			controlCmd[0] = channels%
-
-			if effect$ = "intensity" then
-
-				controlCmd[0] = CHANNEL_CMD_INTENSITY% or channels%
-				controlCmd[1] = time%                ' time in seconds for transition (zero for instantaneous)
-				controlCmd[2] = intensity%           ' target intensity
-				controlCmd[3] = 0					 ' unused
-
-		        m.diagnostics.PrintDebug("sendBLC400Output - intensity: time = " + stri(time%) + " intensity = " + stri(intensity%))
-
-			else if effect$ = "blink" then
-
-				if blinkRate$ = "fast" then
-					blinkRate% = BLINK_SPEED_FAST%
-				else if blinkRate$ = "medium" then
-					blinkRate% = BLINK_SPEED_MEDIUM%
-				else
-					blinkRate% = BLINK_SPEED_SLOW%
-				endif
-
-				controlCmd[ 0 ] = CHANNEL_CMD_BLINK% or channels%
-				controlCmd[ 1 ] = blinkRate%		   ' blink mode
-				controlCmd[ 2 ] = 100                  ' intensity (0 = use current value)
-				controlCmd[ 3 ] = 0                    ' unused
-
-		        m.diagnostics.PrintDebug("sendBLC400Output - blink: blinkRate = " + blinkRate$)
-
-			else if effect$ = "breathe" then
-
-				controlCmd[ 0 ] = CHANNEL_CMD_BREATHE% or channels%
-				controlCmd[ 1 ] = time%                   ' time in seconds for change (zero for instantaneous)
-				controlCmd[ 2 ] = minimumIntensity%       ' min intensity (or rather starting intensity)
-				controlCmd[ 3 ] = maximumIntensity%       ' max intensity
-
-		        m.diagnostics.PrintDebug("sendBLC400Output - breathe: time = " + stri(time%) + " minimumIntensity = " + stri(minimumIntensity%) + " maximumIntensity = " + stri(maximumIntensity%))
-
-			else if effect$ = "strobe" then
-
-				controlCmd[ 0 ] = CHANNEL_CMD_STROBE% or channels%
-				controlCmd[ 1 ] = time%                ' time in milliseconds for strobe
-				controlCmd[ 2 ] = intensity%           ' intensity (0 = use current value)
-				controlCmd[ 3 ] = 0                    ' unused
-
-		        m.diagnostics.PrintDebug("sendBLC400Output - strobe: time = " + stri(time%) + " intensity = " + stri(intensity%))
-
-			else if effect$ = "marquee" then
-
-				lightOnTime% = GetIntegerParameterValue(parameters, "lightOnTime", 0)
-				lightOffTime% = GetIntegerParameterValue(parameters, "lightOffTime", 0)
-
-				transitionModeParameter = parameters["transitionMode"]
-				transitionMode$ = transitionModeParameter.GetCurrentParameterValue()
-
-				playbackModeParameter = parameters["playbackMode"]
-				playbackMode$ = playbackModeParameter.GetCurrentParameterValue()
-
-				if playbackMode$ = "loop" then
-					playbackMode% = MARQUEE_PLAYBACK_LOOP%
-				else if playbackMode$ = "backAndForth" then
-					playbackMode% = MARQUEE_PLAYBACK_BOUNCE%
-				else if playbackMode$ = "playOnce" then
-					playbackMode% = MARQUEE_PLAYBACK_ONCE%
-				else
-					playbackMode% = MARQUEE_PLAYBACK_RANDOM%
-				endif
-
-		        m.diagnostics.PrintDebug("sendBLC400Output - marquee: mode = " + playbackMode$)
-
-				transitionMode% = MARQUEE_TRANSITION_OFF%
-
-				if transitionMode$ = "hard" then
-					fadeOut% = 0
-				else
-					fadeOut% = 1
-
-					if transitionMode$ = "smoothFull" then
-						transitionMode% = MARQUEE_TRANSITION_FULL%
-					else if transitionMode$ = "smoothOverlap"
-						transitionMode% = MARQUEE_TRANSITION_OVERLAP%
-					endif
-
-				endif
-
-				controlCmd[ 0 ] = CHANNEL_CMD_MARQUEE%
-				controlCmd[ 1 ] = MARQUEE_PLAYBACK%			' changing playback mode
-				controlCmd[ 2 ] = playbackMode%				' playback mode
-				controlCmd[ 3 ] = 0							' unused
-
-				m.blcs[controllerIndex%].SetOutputValues(controlCmd)
-
-				controlCmd[ 0 ] = CHANNEL_CMD_MARQUEE%
-				controlCmd[ 1 ] = MARQUEE_FADE_OUT%			' fadeOut
-				controlCmd[ 2 ] = fadeOut%					' hard or soft
-				controlCmd[ 3 ] = 0							' unused
-
-				m.blcs[controllerIndex%].SetOutputValues(controlCmd)
-
-				controlCmd[ 0 ] = CHANNEL_CMD_MARQUEE%
-				controlCmd[ 1 ] = MARQUEE_TRANSITION%			
-				controlCmd[ 2 ] = transitionMode%					
-				controlCmd[ 3 ] = 0							' unused
-
-				m.blcs[controllerIndex%].SetOutputValues(controlCmd)
-
-				controlCmd[ 0 ] = CHANNEL_CMD_MARQUEE%
-				controlCmd[ 1 ] = MARQUEE_ON_TIME%			' on time
-				controlCmd[ 2 ] = lightOnTime%				' msec
-				controlCmd[ 3 ] = 0							' unused
-
-				m.blcs[controllerIndex%].SetOutputValues(controlCmd)
-
-				controlCmd[ 0 ] = CHANNEL_CMD_MARQUEE%
-				controlCmd[ 1 ] = MARQUEE_OFF_TIME%			' off time
-				controlCmd[ 2 ] = lightOffTime%				' msec
-				controlCmd[ 3 ] = 0							' unused
-
-				m.blcs[controllerIndex%].SetOutputValues(controlCmd)
-
-				controlCmd[ 0 ] = CHANNEL_CMD_MARQUEE% or channels%
-				controlCmd[ 1 ] = MARQUEE_EXECUTE%         ' marquee sub command
-				controlCmd[ 2 ] = 0                        ' unused
-				controlCmd[ 3 ] = 0                        ' unused
-
-			endif
-
-			m.blcs[controllerIndex%].SetOutputValues(controlCmd)
-
-		endif
-
-	else if command$ = "sendBPOutput" then
+    else if command$ = "sendBPOutput" then
     
 		buttonPanelIndexParameter = parameters["buttonPanelIndex"]
 		buttonPanelIndex$ = buttonPanelIndexParameter.GetCurrentParameterValue()
@@ -19101,14 +18712,6 @@ Sub ExecuteCmd(zoneHSM As Object, command$ As String, parameters As Object)
 		    m.logging.WriteDiagnosticLogEntry(m.diagnosticCodes.EVENT_USER_VARIABLE_NOT_FOUND, variableName$)
 		endif
 
-	else if command$ = "incrementVariable" then
-
-		m.ChangeUserVariableValue(parameters, 1)
-
-	else if command$ = "decrementVariable" then
-
-		m.ChangeUserVariableValue(parameters, -1)
-
 	else if command$ = "resetVariables" then
 
 		m.ResetVariables()
@@ -19120,24 +18723,6 @@ Sub ExecuteCmd(zoneHSM As Object, command$ As String, parameters As Object)
 
 	endif
 	
-End Sub
-
-
-Sub ChangeUserVariableValue(parameters As Object, delta% As Integer)
-
-	variableNameParameter = parameters["variableName"]
-	variableName$ = variableNameParameter.GetVariableName()
-
-	userVariable = m.GetUserVariable(variableName$)
-	if type(userVariable) = "roAssociativeArray" then
-		currentValue% = val(userVariable.GetCurrentValue())
-		currentValue% = currentValue% + delta%
-		userVariable.SetCurrentValue(stri(currentValue%), true)
-	else
-		m.diagnostics.PrintDebug("User variable " + variableName$ + " not found.")
-		m.logging.WriteDiagnosticLogEntry(m.diagnosticCodes.EVENT_USER_VARIABLE_NOT_FOUND, variableName$)
-	endif
-
 End Sub
 
 
@@ -21245,7 +20830,7 @@ Function pFeedPlayer_DisplayItem( item As Object ) As Boolean
 
 					If item.preloaded and m.imagePlayer.DisplayPreload() then
 
-						m.stateMachine.ShowImageWidget()
+						m.stateMachine.ShowImagePlane()
     				
                         if type(m.videoPlayer) = "roVideoPlayer" then
                             m.videoPlayer.StopClear()
@@ -22673,372 +22258,3 @@ Function SendVolumeCommand(noiseValue% As Integer) As Object
 End Function
 
 
-' *****  Start Custom code
-
-' returns a Dish object from which you can get averything about the subsystem'
-Function initExtra(bsp as Object,mp as Object) as Object
-	
-	print "initExtra"
-
-
-End Function
-
-Sub GetUserVars(userData as Object, e as Object)
-
-    mVar = userData.mVar
-
-  e.AddResponseHeader("Content-type", "text/xml; charset=utf-8")
-  e.AddResponseHeader("Access-Control-Allow-Origin", "*")
-
-    root = CreateObject("roXMLElement")
-    root.SetName("BrightSignUserVariables")
-
-    PopulateUserVarData(mVar, root)
-
-    xml = root.GenXML({ indent: " ", newline: chr(10), header: true })
-
-    e.AddResponseHeader("Content-type", "text/xml")
-    e.SetResponseBodyString(xml)
-    e.SendResponse(200)
-      
-End Sub
-
-Sub PopulateUserVarData(mVar As Object, root As Object)
-
-  varList=[]
-  for each presentationName in mVar.userVariableSets
-      if presentationName = mVar.activePresentation$ then
-        userVariables = mVar.userVariableSets.Lookup(presentationName)
-        for each variableName in userVariables
-          varList.push(variableName)
-          print variableName
-        next
-      endif
-    next
-
-    Sort(varList)
-
-  for each variableName in varList
-    userVariable = userVariables.Lookup(variableName)
-    elem = root.AddElement(variableName)
-    elem.SetBody(userVariable.GetCurrentValue())
-  next
-
-End Sub
-
-
-Sub GetConfigurationPage(userData as Object, e as Object)
-
-    mVar = userData.mVar
-
-' print "respond to GetConfigurationPage request"
-  e.AddResponseHeader("Content-type", "text/html; charset=utf-8")
-
-  nc = CreateObject("roNetworkConfiguration", 0)
-    if type(nc) = "roNetworkConfiguration" then
-       currentConfig = nc.GetCurrentConfig()
-       nc = invalid
-       ipAddress$ = currentConfig.ip4_address
-    endif
-    
-  q=ReadAsciiFile("SD:/local/index.html")
-
-  e.SetResponseBodyString(q)
-  if not e.SendResponse(200) then stop
-
-End Sub
-
-
-
-Sub GetConfigurationPageOld(userData as Object, e as Object)
-
-    mVar = userData.mVar
-
-' print "respond to GetConfigurationPage request"
-  e.AddResponseHeader("Content-type", "text/html; charset=utf-8")
-
-  nc = CreateObject("roNetworkConfiguration", 0)
-    if type(nc) = "roNetworkConfiguration" then
-       currentConfig = nc.GetCurrentConfig()
-       nc = invalid
-       ipAddress$ = currentConfig.ip4_address
-    endif
-    print ipAddress$
-    ipAddress$ = ipAddress$+":8080"
-
-    mVar = userData.mVar
-    varList=[]
-
-    for each presentationName in mVar.userVariableSets
-      if presentationName = mVar.activePresentation$ then
-        userVariables = mVar.userVariableSets.Lookup(presentationName)
-        for each variableName in userVariables
-          varList.push(variableName)
-          print variableName
-        next
-      endif
-    next
-
-    Sort(varList)
-
-    s=""
-    for each variableName in varList
-      userVariable = userVariables.Lookup(variableName)
-      s = s + variableName + ":<br>" + Chr(13) + Chr(10)
-      s = s + "<input type=" + chr(34) + "text" + chr(34) + " name=" + chr(34) + variableName + chr(34) + " value=" + chr(34)
-      s = s + userVariable.GetCurrentValue() + chr(34) + " size=" + chr(34) + "100" + chr(34) + " /> <br />" + Chr(13) + Chr(10)
-    next
-
-  q=ReadAsciiFile("SD:/local/index.html")
-
-  r = CreateObject("roRegex", "USERVARS", "i")
-  s=r.ReplaceAll(q,s)
-
-  r2 = CreateObject("roRegex", "PLAYERIPADDR", "i")
-  s2=r2.ReplaceAll(s,ipAddress$)
-
-  e.SetResponseBodyString(s)
-  if not e.SendResponse(200) then stop
-
-End Sub
-
-
-'******************************************************
-'Insertion Sort - cribbed from Roku - https://github.com/sunlightlabs/Roku-Supreme-Court/blob/master/source/generalUtils.brs
-'Will sort an array directly, or use a key function
-'******************************************************
-Sub Sort(A as Object, key=invalid as dynamic)
-
-    if type(A)<>"roArray" then return
-
-    if (key=invalid) then
-        for i = 1 to A.Count()-1
-            value = A[i]
-            j = i-1
-            while j>= 0 and A[j] > value
-                A[j + 1] = A[j]
-                j = j-1
-            end while
-            A[j+1] = value
-        next
-
-    else
-        if type(key)<>"Function" then return
-        for i = 1 to A.Count()-1
-            valuekey = key(A[i])
-            value = A[i]
-            j = i-1
-            while j>= 0 and key(A[j]) > valuekey
-                A[j + 1] = A[j]
-                j = j-1
-            end while
-            A[j+1] = value
-        next
-
-    end if
-
-End Sub
-
-
-
-Sub GetWaitListPage(userData as Object, e as Object)
-
-    mVar = userData.mVar
-
-' print "respond to GetConfigurationPage request"
-  e.AddResponseHeader("Content-type", "text/html; charset=utf-8")
-
-  nc = CreateObject("roNetworkConfiguration", 0)
-    if type(nc) = "roNetworkConfiguration" then
-       currentConfig = nc.GetCurrentConfig()
-       nc = invalid
-       ipAddress$ = currentConfig.ip4_address
-    endif
-    
-  q=ReadAsciiFile("SD:/local/waitlist.html")
-
-  e.SetResponseBodyString(q)
-  if not e.SendResponse(200) then stop
-
-End Sub
-
-
-
-Sub GetWaitListVars(userData as Object, e as Object)
-
-    mVar = userData.mVar
-
-    e.AddResponseHeader("Content-type", "text/xml; charset=utf-8")
-    e.AddResponseHeader("Access-Control-Allow-Origin", "*")
-
-    root = CreateObject("roXMLElement")
-    root.SetName("WaitListVariables")
-
-    PopulateWaitListData(mVar, root)
-
-    xml = root.GenXML({ indent: " ", newline: chr(10), header: true })
-
-    e.SetResponseBodyString(xml)
-    e.SendResponse(200)
-      
-End Sub
-
-Sub PopulateWaitListData(mVar As Object, root As Object)
-  num=mVar.waitlistNames.Count()
-  x=0
-
-  while x<num
-    person=mVar.waitlistNames[x]
-    size=mVar.waitlistSizes[x]
-
-    party=root.AddBodyElement()
-    party.SetName("party")
-    personElement=party.AddBodyElement()
-    personElement.SetName("name")
-    personElement.SetBody(person)
-
-    numberElement=party.AddBodyElement()
-    numberElement.SetName("number")
-    numberElement.SetBody(size)
-
-    x=x+1
-  end while
-End Sub
-
-
-Function AddWaitListEntry(userData as Object, e as Object)
-
-  mVar = userData.mVar
-  args = e.GetFormData()
-
-  name=args.LookupCi("name")
-  number=args.LookupCi("number")
-  b=isInArray(name,mVar.waitlistNames)
-  if b=true
-
-  end if
-  mVar.waitlistNames.push(name)
-  mVar.waitlistSizes.push(number)
-
-  GetWaitListVars(userData,e)
-End Function
-
-
-Function isInArray(str as String, arr as object) as Integer
-
-  for each a in arr
-    if a=str
-      return 1
-    end if
-  next
-  return 0
-end function
-
-Sub DelWaitListEntry(userData as Object, e as Object)
-
-  mVar = userData.mVar
-  args = e.GetFormData()
-  name=args.name.trim()
-  num=mVar.waitlistNames.Count()
-  x=0
-  while x<num
-    person=mVar.waitlistNames[x]
-    if person=name
-      mVar.waitlistNames.Delete(x)
-      mVar.waitlistSizes.Delete(x)
-    end if
-    x=x+1
-  end while
-  GetWaitListVars(userData,e)
-
-End Sub
-
-Sub ActWaitListVars(userData as Object, e as Object)
-
-  mVar = userData.mVar
-  args = e.GetFormData()
-  print args
-
-  act =args.action.trim()
-
-  if act="get"
-    ' do nothing - fall through'
-  else if act="add"
-    name=args.name.trim()
-    number=args.number.trim()
-    b=isInArray(name,mVar.waitlistNames)
-    if b<>true
-      mVar.waitlistNames.push(name)
-      mVar.waitlistSizes.push(number)
-    end if
-  else if act="change"
-
-
-  else if act="delete"
-    name=args.name.trim()
-    num=mVar.waitlistNames.Count()
-    x=0
-    while x<num
-      person=mVar.waitlistNames[x]
-      if person=name
-        mVar.waitlistNames.Delete(x)
-        mVar.waitlistSizes.Delete(x)
-      end if
-      x=x+1
-    end while
-
-  else
-    print "No valid action specified for ActWaitListVars"
-  end if 
-  GetWaitListVars(userData,e)
-End Sub
-
-
-Function GetFileExtension(file as String) as String
-  s=file.tokenize(".")
-  ext=s.pop()
-  return ext
-end Function
-
-Function GetMimeTypeByExtension(ext as String) as String
-
-  ' start with audio types '
-  if ext="mp3"
-    return "audio/mpeg"
-
-  ' now image types '
-  else if ext="gif"
-    return "image/gif"
-  else if ext="jpeg"
-    return "image/jpeg"
-  else if ext="jpg"
-    return "image/jpeg"
-  else if ext="png"
-    return "image/png"
-
-  ' now text types'
-  else if ext="css"
-    return "text/css"
-  else if ext="js"
-    return "application/JavaScript"
-  else if ext="csv"
-    return "text/csv"
-  else if ext="html"
-    return "text/html"
-  else if ext="htm"
-    return "text/html"
-  else if ext="txt"
-    return "text/plain"
-  else if ext="xml"
-    return "text/xml"
-
-  ' now some video types'
-  else if ext="mpeg"
-    return "video/mpeg"
-  else if ext="mp4"
-    return "video/mp4"
-  else if ext="ts"
-    return "video/mpeg"
-
-  end if
-end Function

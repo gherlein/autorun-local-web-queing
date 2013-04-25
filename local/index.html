@@ -63,12 +63,10 @@ function cellClickedEdit(x)
   var name = na.trim();
   var number = nu.trim();
 
-  var str="Are you sure you want to edit "+name+" party of "+number+"?";
-  apprise(str, {'verify':true}, function(c) {
-    if(c==true)  
-    {
-      var result = $('tr').find('td:contains('+name+')');
-      var row = $(result).closest('tr');
+  apprise('Edit number in party', {'input': number}, function(r) {
+    if(typeof(r)=='string') {
+      console.log("number:"+r)
+      actWaitListVars("change",doVars,name,r);
     }
   });
 }
@@ -83,10 +81,29 @@ function nullDraw()
 
 }
 
+function clickAdd()
+{
+  var name="";
+  var number="";
+  apprise('Please enter a name', {'input':true}, function(r) {
+    if(typeof(r)=='string') {
+      name=r;
+      apprise('Number in party', {'input':true}, function(r) {
+        if(typeof(r)=='string') {
+          number=r;
+          console.log("number:"+number)
+          actWaitListVars("add",doVars,name,number);
+        }
+      });
+
+    }
+  });
+}
+
+
 
 function doVars(us)
 {
-  console.log("doVars");
   if(typeof us === 'undefined')
   {
     console.log("waitListVars not defined");
@@ -95,20 +112,34 @@ function doVars(us)
 
   var s="";
   s += '<table id="waitlist-table" cellspacing=0 cellpadding=2 border=0>';
-//  s += "<tr><th>Name</th><th>Number</th><th>Edit</th><th>Delete</th></tr>";
-  for(var x=0;x<us.length;x++)
+  var n=us.length;
+
+  console.log("doVars");
+  printObj(us);
+  if(n==0)
   {
-    var o=us[x];
-    printObj(o);
-    //s+='<tr onclick="rowClicked(this)">';
     s+='<tr>';
-    s+='<td width="100px"><center>'+o.name+'</center></td>';
-    s+='<td width="50px"><center>'+o.number+'</center></td>';
-    s+='<td onclick="cellClickedEdit(this)"><img src="edit.png" class="listbuttons"></td>';
-    s+='<td onclick="cellClickedDelete(this)"><img src="del.png" class="listbuttons"></td>';
+    s+='<td width="100%"><center>No waiting!</center></td>';
     s+="</tr>";
-  } 
+
+  } else
+  {
+    for(var x=0;x<us.length;x++)
+    {
+      var o=us[x];
+      printObj(o);
+      //s+='<tr onclick="rowClicked(this)">';
+      s+='<tr>';
+      s+='<td width="100px"><center>'+o.name+'</center></td>';
+      s+='<td width="50px"><center>'+o.number+'</center></td>';
+      s+='<td onclick="cellClickedEdit(this)"><img src="edit.png" class="listbuttons"></td>';
+      s+='<td onclick="cellClickedDelete(this)"><img src="del.png" class="listbuttons"></td>';
+      s+="</tr>";
+    } 
+  }
   s+="</table>"
+  
+
   console.log(s);
   $('div.waitlist').html(s);
 };
@@ -125,10 +156,10 @@ function doVars(us)
 </div>
 <p>
 <center>
-<h1>WaitList Page</h1>
+<h1>Waiting List</h1>
 <p>
 <center>
-<img src="add.png" class="listbuttons">
+<img src="add.png" class="listbuttons" onclick="clickAdd()">
 </center>
 <p>
 <hr width="75%">  

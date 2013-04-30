@@ -1,6 +1,9 @@
 curl "http://$1/delete?filename=sd%2f/local/index.html&delete=Delete"
 curl -i -F filedata="@local/index.html" "http://$1/upload.html?rp=sd/local"
 #
+curl "http://$1/delete?filename=sd%2f/local/waiting.html&delete=Delete"
+curl -i -F filedata="@local/waiting.html" "http://$1/upload.html?rp=sd/local"
+#
 curl "http://$1/delete?filename=sd%2f/local/logo.png&delete=Delete"
 curl -i -F filedata="@local/logo.png" "http://$1/upload.html?rp=sd/local"
 #

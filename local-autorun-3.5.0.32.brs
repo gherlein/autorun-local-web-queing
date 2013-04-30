@@ -1,4 +1,4 @@
-' local-autorun based off 3.5.0.31 '
+' local-autorun based off 3.5.0.32 '
 
 Library "autoplugins.brs"
 
@@ -370,6 +370,7 @@ Sub RunBsp(sysFlags As Object, sysInfo As Object, diagnosticCodes As Object)
         BSP.localServer = CreateObject("roHttpServer", { port: 8080 })
         BSP.localServer.SetPort(msgPort)
 
+
         BSP.GetIDAA =               { HandleEvent: GetID, mVar: BSP }
         BSP.GetUDPEventsAA =        { HandleEvent: GetUDPEvents, mVar: BSP }
         BSP.GetRemoteDataAA =       { HandleEvent: GetRemoteData, mVar: BSP }
@@ -392,7 +393,7 @@ Sub RunBsp(sysFlags As Object, sysInfo As Object, diagnosticCodes As Object)
         BSP.localServer.AddPostToFile({ url_path: "/UploadSyncSpec", destination_directory: GetDefaultDrive(), user_data: BSP.SyncSpecPostedAA, passwords: credentials })
         BSP.localServer.AddPostToFile({ url_path: "/PrepareForTransfer", destination_directory: GetDefaultDrive(), user_data: BSP.PrepareForTransferAA, passwords: credentials })
 	
-		BSP.localServer.AddGetFromEvent({ url_path: "/", user_data: BSP.GetConfigurationPageAA})
+		    BSP.localServer.AddGetFromEvent({ url_path: "/", user_data: BSP.GetConfigurationPageAA})
         BSP.localServer.AddPostToFormData({ url_path: "/SetValues", user_data: BSP.SetValuesAA })
 
         ' start custom code'
@@ -22535,6 +22536,8 @@ Sub ActWaitListVars(userData as Object, e as Object)
 
   mVar = userData.mVar
   args = e.GetFormData()
+  'print args
+print "XXXXXXXXXXX"
 
   act =args.action.trim()
   print "action string: "+act
@@ -22630,6 +22633,6 @@ Function GetMimeTypeByExtension(ext as String) as String
   else if ext="ts"
     return "video/mpeg"
   end if
-  return invalid
+  return ""
 end Function
 

@@ -13,6 +13,7 @@
 
 var localPlayerIP="http://192.168.70.100:8080";
 var button_size=60;
+var currentUserVarIndex=0;
 
 window.onload = function() {
 
@@ -23,130 +24,36 @@ window.onload = function() {
   } else {
     bsp=bsputils_init(isBSP,true,localPlayerIP);
   }
-  actWaitListVars("get",doVars);  
-  //setInterval(function(){actWaitListVars("get",doVars)},15000);
-
+  getUserVars(doUserVars);
 };
 
-
-function rowClicked(x)
+function doUserVars(us)
 {
-  var name = x.cells[0].innerText || x.cells[0].textContent;
-  actWaitListVars("delete",doVars,name);
-}
+  printObj("doUserVars "+us+" "+currentUserVarIndex+" "+us.length);
 
-function cellClickedDelete(x)
-{
-  var tr=x.parentNode;
-  var na = tr.cells[0].innerText || x.cells[0].textContent;
-  var nu = tr.cells[1].innerText || x.cells[1].textContent;
-  var name = na.trim();
-  var number = nu.trim();
-
-  var str="Are you sure you want to delete "+name+" party of "+number+"?";
-  apprise(str, {'verify':true}, function(c) {
-    if(c==true)  
-    {
-      var result = $('tr').find('td:contains('+name+')');
-      var row = $(result).closest('tr');
-      row.remove();
-      actWaitListVars("delete",nullDraw,name);
-    }
-  });
-}
-
-function cellClickedEdit(x)
-{
-  var tr=x.parentNode;
-  var na = tr.cells[0].innerText || x.cells[0].textContent;
-  var nu = tr.cells[1].innerText || x.cells[1].textContent;
-  var name = na.trim();
-  var number = nu.trim();
-
-  apprise('Edit number in party', {'input': number}, function(r) {
-    if(typeof(r)=='string') {
-      console.log("number:"+r)
-      actWaitListVars("change",doVars,name,r);
-    }
-  });
-}
-
-
-function getCell( cell )
-{
-}
-
-function nullDraw()
-{
-
-}
-
-function clickAdd()
-{
-  var name="";
-  var number="";
-  apprise('Please enter a name', {'input':true}, function(r) {
-    if(typeof(r)=='string') {
-      name=r;
-      apprise('Number in party', {'input':true}, function(r) {
-        if(typeof(r)=='string') {
-          number=r;
-          console.log("number:"+number)
-          actWaitListVars("add",doVars,name,number);
-        }
-      });
-
-    }
-  });
-}
-
-
-
-function doVars(us)
-{
   if(typeof us === 'undefined')
   {
-    console.log("waitListVars not defined");
+    console.log("userVars not defined");
+      setTimeout(function(){getUserVars(doUserVars)},1000);
     return;
   }
 
-  var s="";
-  s += '<table id="waitlist-table" cellspacing=0 cellpadding=2 border=0>';
-  var n=us.length;
-
-  console.log("doVars");
-  printObj(us);
-  if(n==0)
+  if(currentUserVarIndex>=us.length)
   {
-    s+='<tr>';
-    s+='<td width="100%"><center>No waiting!</center></td>';
-    s+="</tr>";
-
+    currentUserVarIndex=0;
   } else
   {
-    for(var x=0;x<us.length;x++)
-    {
-      var o=us[x];
-      printObj(o);
-      //s+='<tr onclick="rowClicked(this)">';
-      s+='<tr>';
-      s+='<td width="100px"><center>'+o.name+'</center></td>';
-      s+='<td width="50px"><center>'+o.number+'</center></td>';
-      s+='<td onclick="cellClickedEdit(this)"><img src="edit.png" class="listbuttons"></td>';
-      s+='<td onclick="cellClickedDelete(this)"><img src="del.png" class="listbuttons"></td>';
-      s+="</tr>";
-    } 
+    currentUserVarIndex++;
   }
-  s+="</table>"
-  
 
-  console.log(s);
-  $('div.waitlist').html(s);
-};
+  var o=us[currentUserVarIndex];
+  printObj(o);
+  printObj(o.value);
+  changeText(o.value);
+  setTimeout(function(){getUserVars(doUserVars)},1000);
 
-
+}
 </script>
-
 </head>
 <body>
 <div id="header">
@@ -156,15 +63,14 @@ function doVars(us)
 </div>
 <p>
 <center>
-<h1>Waiting List</h1>
-<p>
-<center>
-<img src="add.png" class="listbuttons" onclick="clickAdd()">
-</center>
+<h1>User Variables</h1>
 <p>
 <hr width="75%">  
 <p>
-<div class="waitlist"></div>
+<div id="form">
+<form action="/SetValues" method="post">
+<input class="button" type="submit" value="Set Values" /><br />
+</form>
 </div>
 </center>
 <p>
@@ -175,6 +81,9 @@ function doVars(us)
 <center>
 <img src="BrightSign_logo.png" alt="LOGO">
 </center>
+<div id="switcher">
+  <center><a href="/waiting.html">Waiting List</a></center>
+</div>
 <div id="footer">
   <center>(c) 2013 Brightsign LLC</center>
 </div>

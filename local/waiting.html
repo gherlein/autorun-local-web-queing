@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>BrightSign User Variables</title>
+<link href="local.css" rel="stylesheet" type="text/css">
+<link href="apprise.css" rel="stylesheet" type="text/css">
+<script src="jquery-1.9.1.min.js"></script>
+<script src="apprise-1.5.full.js"></script>
+<script src="local.js"></script>
+<script src="waitlist.js"></script>
+<script>
+
+var localPlayerIP="http://192.168.70.100:8080";
+var button_size=60;
+
+window.onload = function() {
+
+  var isBSP=isBrightSign();
+
+  if(isBSP) {
+    bsp=bsputils_init(isBSP,true);
+  } else {
+    bsp=bsputils_init(isBSP,true,localPlayerIP);
+  }
+  actWaitListVars("get",doVars);  
+  //setInterval(function(){actWaitListVars("get",doVars)},15000);
+
+};
+
+
+function rowClicked(x)
+{
+  var name = x.cells[0].innerText || x.cells[0].textContent;
+  actWaitListVars("delete",doVars,name);
+}
+
+function cellClickedDelete(x)
+{
+  var tr=x.parentNode;
+  var na = tr.cells[0].innerText || x.cells[0].textContent;
+  var nu = tr.cells[1].innerText || x.cells[1].textContent;
+  var name = na.trim();
+  var number = nu.trim();
+
+  var str="Are you sure you want to delete "+name+" party of "+number+"?";
+  apprise(str, {'verify':true}, function(c) {
+    if(c==true)  
+    {
+      var result = $('tr').find('td:contains('+name+')');
+      var row = $(result).closest('tr');
+      row.remove();
+      actWaitListVars("delete",nullDraw,name);
+    }
+  });
+}
+
+function cellClickedEdit(x)
+{
+  var tr=x.parentNode;
+  var na = tr.cells[0].innerText || x.cells[0].textContent;
+  var nu = tr.cells[1].innerText || x.cells[1].textContent;
+  var name = na.trim();
+  var number = nu.trim();
+
+  apprise('Edit number in party', {'input': number}, function(r) {
+    if(typeof(r)=='string') {
+      console.log("number:"+r)
+      actWaitListVars("change",doVars,name,r);
+    }
+  });
+}
+
+
+function getCell( cell )
+{
+}
+
+function nullDraw()
+{
+
+}
+
+function clickAdd()
+{
+  var name="";
+  var number="";
+  apprise('Please enter a name', {'input':true}, function(r) {
+    if(typeof(r)=='string') {
+      name=r;
+      apprise('Number in party', {'input':true}, function(r) {
+        if(typeof(r)=='string') {
+          number=r;
+          console.log("number:"+number)
+          actWaitListVars("add",doVars,name,number);
+        }
+      });
+
+    }
+  });
+}
+
+
+
+function doVars(us)
+{
+  if(typeof us === 'undefined')
+  {
+    console.log("waitListVars not defined");
+    return;
+  }
+
+  var s="";
+  s += '<table id="waitlist-table" cellspacing=0 cellpadding=2 border=0>';
+  var n=us.length;
+
+  console.log("doVars");
+  printObj(us);
+  if(n==0)
+  {
+    s+='<tr>';
+    s+='<td width="100%"><center>No waiting!</center></td>';
+    s+="</tr>";
+
+  } else
+  {
+    for(var x=0;x<us.length;x++)
+    {
+      var o=us[x];
+      printObj(o);
+      //s+='<tr onclick="rowClicked(this)">';
+      s+='<tr>';
+      s+='<td width="100px"><center>'+o.name+'</center></td>';
+      s+='<td width="50px"><center>'+o.number+'</center></td>';
+      s+='<td onclick="cellClickedEdit(this)"><img src="edit.png" class="listbuttons"></td>';
+      s+='<td onclick="cellClickedDelete(this)"><img src="del.png" class="listbuttons"></td>';
+      s+="</tr>";
+    } 
+  }
+  s+="</table>"
+  
+
+  console.log(s);
+  $('div.waitlist').html(s);
+};
+
+
+</script>
+
+</head>
+<body>
+<div id="header">
+<center>
+<img src="logo.png" alt="LOGO">
+</center>
+</div>
+<p>
+<center>
+<h1>Waiting List</h1>
+<p>
+<center>
+<img src="add.png" class="listbuttons" onclick="clickAdd()">
+</center>
+<p>
+<hr width="75%">  
+<p>
+<div class="waitlist"></div>
+</div>
+</center>
+<p>
+<hr width="75%">  
+<div>
+<br>
+</div>
+<center>
+<img src="BrightSign_logo.png" alt="LOGO">
+</center>
+<div id="switcher">
+  <center><a href="/index.html">User Variable Page</a></center>
+</div>
+<div id="footer">
+  <center>(c) 2013 Brightsign LLC</center>
+</div>
+</body>
+</html>

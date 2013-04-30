@@ -1,4 +1,4 @@
-' local-autorun based off 3.5.0.31 '
+' local-autorun based off 3.5.0.32 '
 
 Library "autoplugins.brs"
 
@@ -370,7 +370,6 @@ Sub RunBsp(sysFlags As Object, sysInfo As Object, diagnosticCodes As Object)
         BSP.localServer = CreateObject("roHttpServer", { port: 8080 })
         BSP.localServer.SetPort(msgPort)
 
-
         BSP.GetIDAA =               { HandleEvent: GetID, mVar: BSP }
         BSP.GetUDPEventsAA =        { HandleEvent: GetUDPEvents, mVar: BSP }
         BSP.GetRemoteDataAA =       { HandleEvent: GetRemoteData, mVar: BSP }
@@ -393,7 +392,7 @@ Sub RunBsp(sysFlags As Object, sysInfo As Object, diagnosticCodes As Object)
         BSP.localServer.AddPostToFile({ url_path: "/UploadSyncSpec", destination_directory: GetDefaultDrive(), user_data: BSP.SyncSpecPostedAA, passwords: credentials })
         BSP.localServer.AddPostToFile({ url_path: "/PrepareForTransfer", destination_directory: GetDefaultDrive(), user_data: BSP.PrepareForTransferAA, passwords: credentials })
 	
-		    BSP.localServer.AddGetFromEvent({ url_path: "/", user_data: BSP.GetConfigurationPageAA})
+		BSP.localServer.AddGetFromEvent({ url_path: "/", user_data: BSP.GetConfigurationPageAA})
         BSP.localServer.AddPostToFormData({ url_path: "/SetValues", user_data: BSP.SetValuesAA })
 
         ' start custom code'
@@ -415,6 +414,14 @@ Sub RunBsp(sysFlags As Object, sysInfo As Object, diagnosticCodes As Object)
 
         BSP.ActWaitListVarsAA =         { HandleEvent: ActWaitListVars, mVar: BSP }
         BSP.localServer.AddPostToFormData({ url_path: "/ActWaitListVars", user_data: BSP.ActWaitListVarsAA })
+
+        BSP.LocalVarsAA =         { HandleEvent: LocalVars, mVar: BSP }
+        BSP.localServer.AddPostToFormData({ url_path: "/LocalVars", user_data: BSP.ActWaitListVarsAA })
+
+
+        ' arrays to hold the waiting list data'
+        BSP.localVarsMasterArray=[]
+
 
         ' arrays to hold the waiting list data'
         BSP.waitlistNames=[]
@@ -22536,8 +22543,6 @@ Sub ActWaitListVars(userData as Object, e as Object)
 
   mVar = userData.mVar
   args = e.GetFormData()
-  'print args
-print "XXXXXXXXXXX"
 
   act =args.action.trim()
   print "action string: "+act
@@ -22583,6 +22588,67 @@ print "XXXXXXXXXXX"
   end if 
   GetWaitListVars(userData,e)
 End Sub
+
+
+Sub LocalVars(userData as Object, e as Object)
+
+  mVar = userData.mVar
+  args = e.GetFormData()
+
+  arr=args.arr.trim()
+  print "array name: "+arr
+  larr=mVar.localVarsMasterArray[arr]
+  if larr=invalid
+    larr=[]
+    mVar.localVarsMasterArray.push(larr)
+  endif
+
+  act =args.action.trim()
+  print "action string: "+act
+
+  if act="get"
+    ' do nothing - fall through'
+  else if act="add"
+    =args.key.trim()
+    =args.number.trim()
+    b=isInArray(name,larr)
+    if b<>true
+      .push(name)
+      mVar.waitlistSizes.push(number)
+    end if
+  else if act="change"
+    name=args.name.trim()
+    number=args.number.trim()
+    print "change request: "+name+" to: "+number
+    num=mVar.waitlistNames.Count()
+    x=0
+    while x<num
+      print "matching ["+name+"] against ["+mVar.waitlistNames[x]+"]"
+      if name=mVar.waitlistNames[x]
+        mVar.waitlistSizes[x]=number
+      end if
+      x=x+1
+    end while
+  else if act="delete"
+    name=args.name.trim()
+    num=mVar.waitlistNames.Count()
+    x=0
+    while x<num
+      person=mVar.waitlistNames[x]
+      if person=name
+        mVar.waitlistNames.Delete(x)
+        mVar.waitlistSizes.Delete(x)
+      end if
+      x=x+1
+    end while
+
+  else
+    print "No valid action specified for ActWaitListVars"
+  end if 
+  GetWaitListVars(userData,e)
+End Sub
+
+
 
 Function GetFileExtension(file as String) as String
   s=file.tokenize(".")
@@ -22633,6 +22699,6 @@ Function GetMimeTypeByExtension(ext as String) as String
   else if ext="ts"
     return "video/mpeg"
   end if
-  return ""
+  return invalid
 end Function
 
